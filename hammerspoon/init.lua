@@ -24,6 +24,7 @@ local CURL_BIN = "/usr/bin/curl"
 local CLIP     = "/tmp/whisper_clip.wav"
 local ENDPOINT = "http://127.0.0.1:8080/inference"
 local DRAFT_REPLY = HOME .. "/.local/bin/draft-reply.sh"
+local PR_REVIEW   = HOME .. "/.local/bin/pr-review.sh"
 -- --------------------------------
 
 local recording = false
@@ -130,6 +131,28 @@ local function draftReply()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "s", draftReply)
 
+-- Ctrl+Cmd+P = review a GitHub PR. Copy the PR link, then press it. Claude
+-- reviews the diff and leaves a PENDING review (inline comments) under your
+-- work gh account; you submit it on GitHub.
+local function reviewPR()
+  local url = hs.pasteboard.getContents()
+  if not url or not url:match("^https://github%.com/[^/]+/[^/]+/pull/%d+") then
+    hs.alert.show("Copy a GitHub PR link first, then ⌃⌘P"); return
+  end
+  hs.alert.show("🔍  reviewing PR…  (pending review when done)", 2)
+  local task = hs.task.new(PR_REVIEW, function(code, stdout, stderr)
+    if code == 0 then
+      hs.notify.new({ title = "PR review posted (pending — you submit)",
+                      informativeText = (stdout or ""):sub(1, 180), soundName = "Glass" }):send()
+      hs.alert.show("✅  pending review posted — open the PR to submit", 3)
+    else
+      hs.alert.show("PR review failed — see /tmp/pr-review.log")
+    end
+  end, { url })
+  task:start()
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "p", reviewPR)
+
 -- Ctrl+Cmd+R = read highlighted text aloud (macOS `say`); Ctrl+Cmd+. = stop
 local TTS_VOICE = nil
 local sayTask   = nil
@@ -157,4 +180,4 @@ end
 hs.hotkey.bind({ "ctrl", "cmd" }, "r", speakSelection)
 hs.hotkey.bind({ "ctrl", "cmd" }, ".", stopSpeaking)
 
-hs.alert.show("Voice setup ready — Option+Space talk · Option+Esc stop · ⌃⌘S draft")
+hs.alert.show("Voice setup ready — ⌥Space talk · ⌥Esc stop · ⌃⌘S draft · ⌃⌘P review PR")
