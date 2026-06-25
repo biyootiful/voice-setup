@@ -1,0 +1,14 @@
+# Reply drafter config — copy to ~/.config/voice-setup/reply-repos.conf and edit.
+# Which repos Ctrl+Cmd+S searches when drafting a reply to a highlighted message.
+
+# Base directory that holds your repos
+GIT_BASE="$HOME/Documents/git"
+
+# The main repo (most questions are about this one) — opened as the working dir
+PRIMARY_REPO="ctv-platform-be"
+
+# Other repos to also search, space-separated dir names under GIT_BASE
+EXTRA_REPOS="revenue-management-system product-analytics-be ctv-platform-fe coolai-ui"
+
+# How replies refer to you (first-person voice)
+USER_NAME="me"
