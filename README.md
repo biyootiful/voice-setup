@@ -6,6 +6,7 @@ A local, private voice + AI workflow for Apple-Silicon macOS:
 - **Auto-read** — Claude Code's replies are read aloud in a natural neural voice (Kokoro); **Option+Esc** stops it.
 - **Approval alerts** — a chime + banner + spoken alert when Claude is waiting on you, even in another app.
 - **Reply drafter** — highlight any message (Slack, email, ticket, doc) and press **Ctrl+Cmd+S**; Claude Code reads your repos and drops a paste-ready reply on your clipboard.
+- **PR reviewer** — copy a GitHub PR link and press **Ctrl+Cmd+P**; Claude reviews the diff and leaves a **pending** review (inline comments) that you submit. Needs the `gh` CLI logged in.
 
 Everything runs locally except the reply drafter and the read-aloud, which use your existing **Claude Code subscription** (no extra API cost).
 
@@ -50,6 +51,7 @@ The installer (idempotent — safe to re-run) will:
 | **Option + Space** (hold) | Dictate; release to type |
 | **Option + Esc** | Stop the voice reading |
 | **Ctrl + Cmd + S** | Draft a reply to highlighted text → clipboard |
+| **Ctrl + Cmd + P** | Review the copied GitHub PR link → pending review you submit |
 | **Ctrl + Cmd + R** | Read highlighted text aloud (macOS `say`) |
 | **Ctrl + Cmd + .** | Stop reading |
 
@@ -64,6 +66,7 @@ The installer (idempotent — safe to re-run) will:
 - whisper server: `/tmp/whisper-server.log`
 - Kokoro server: `/tmp/kokoro-tts.log`
 - reply drafter: `/tmp/draft-reply.log`
+- PR reviewer: `/tmp/pr-review.log`
 
 Restart a service: `launchctl unload ~/Library/LaunchAgents/com.user.kokoro-tts.plist && launchctl load ~/Library/LaunchAgents/com.user.kokoro-tts.plist`
 

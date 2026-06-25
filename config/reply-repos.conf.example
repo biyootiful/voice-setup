@@ -12,3 +12,6 @@ EXTRA_REPOS="revenue-management-system product-analytics-be ctv-platform-fe cool
 
 # How replies refer to you (first-person voice)
 USER_NAME="me"
+
+# gh account that PR reviews (Ctrl+Cmd+P) post under. Must be logged in via `gh auth login`.
+GH_ACCOUNT="insticator-biY"
