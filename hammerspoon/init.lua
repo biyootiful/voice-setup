@@ -25,6 +25,7 @@ local CLIP     = "/tmp/whisper_clip.wav"
 local ENDPOINT = "http://127.0.0.1:8080/inference"
 local DRAFT_REPLY = HOME .. "/.local/bin/draft-reply.sh"
 local PR_REVIEW   = HOME .. "/.local/bin/pr-review.sh"
+local RESUME_REVIEW = HOME .. "/.local/bin/resume-review.sh"
 -- --------------------------------
 
 local recording = false
@@ -153,6 +154,28 @@ local function reviewPR()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "p", reviewPR)
 
+-- Ctrl+Cmd+H = review candidate resumes. Pops a multi-select file picker
+-- (defaults to ~/Downloads); Claude reads the PDFs and drops hiring feedback
+-- on your clipboard. Nothing is sent anywhere — you review and paste.
+local function reviewResumes()
+  hs.alert.show("📄  pick the resume PDFs…", 1.5)
+  local task = hs.task.new(RESUME_REVIEW, function(code, stdout, stderr)
+    local out = (stdout or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if out == "CANCELLED" or out == "" then return end
+    if code == 0 then
+      hs.pasteboard.setContents(out)
+      hs.notify.new({ title = "Resume feedback ready",
+                      informativeText = "Copied — ⌘V to paste.\n" .. out:sub(1, 160),
+                      soundName = "Glass" }):send()
+      hs.alert.show("✅  feedback on clipboard — ⌘V to paste", 2.5)
+    else
+      hs.alert.show("resume review failed — see /tmp/resume-review.log")
+    end
+  end, {})
+  task:start()
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "h", reviewResumes)
+
 -- Ctrl+Cmd+R = read highlighted text aloud (macOS `say`); Ctrl+Cmd+. = stop
 local TTS_VOICE = nil
 local sayTask   = nil
@@ -180,4 +203,4 @@ end
 hs.hotkey.bind({ "ctrl", "cmd" }, "r", speakSelection)
 hs.hotkey.bind({ "ctrl", "cmd" }, ".", stopSpeaking)
 
-hs.alert.show("Voice setup ready — ⌥Space talk · ⌥Esc stop · ⌃⌘S draft · ⌃⌘P review PR")
+hs.alert.show("Voice setup ready — ⌥Space talk · ⌥Esc stop · ⌃⌘S draft · ⌃⌘P PR · ⌃⌘H resumes")

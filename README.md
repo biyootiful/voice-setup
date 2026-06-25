@@ -7,6 +7,7 @@ A local, private voice + AI workflow for Apple-Silicon macOS:
 - **Approval alerts** — a chime + banner + spoken alert when Claude is waiting on you, even in another app.
 - **Reply drafter** — highlight any message (Slack, email, ticket, doc) and press **Ctrl+Cmd+S**; Claude Code reads your repos and drops a paste-ready reply on your clipboard.
 - **PR reviewer** — copy one or more GitHub PR links (even a whole Slack message — it extracts every PR link and ignores the rest) and press **Ctrl+Cmd+P**; Claude reviews each diff and leaves a **pending** review (inline comments) you submit. Needs the `gh` CLI logged in.
+- **Resume reviewer** — download the resume PDFs (Slack "Download all" → `~/Downloads`), press **Ctrl+Cmd+H**, pick the PDFs in the file dialog (multi-select), and Claude drops hiring feedback per candidate on your clipboard. PII is sent to Claude — you review before sharing.
 
 Everything runs locally except the reply drafter and the read-aloud, which use your existing **Claude Code subscription** (no extra API cost).
 
@@ -51,7 +52,8 @@ The installer (idempotent — safe to re-run) will:
 | **Option + Space** (hold) | Dictate; release to type |
 | **Option + Esc** | Stop the voice reading |
 | **Ctrl + Cmd + S** | Draft a reply to highlighted text → clipboard |
-| **Ctrl + Cmd + P** | Review the copied GitHub PR link → pending review you submit |
+| **Ctrl + Cmd + P** | Review the copied GitHub PR link(s) → pending review you submit |
+| **Ctrl + Cmd + H** | Pick resume PDFs → hiring feedback on clipboard |
 | **Ctrl + Cmd + R** | Read highlighted text aloud (macOS `say`) |
 | **Ctrl + Cmd + .** | Stop reading |
 
@@ -67,6 +69,7 @@ The installer (idempotent — safe to re-run) will:
 - Kokoro server: `/tmp/kokoro-tts.log`
 - reply drafter: `/tmp/draft-reply.log`
 - PR reviewer: `/tmp/pr-review.log`
+- resume reviewer: `/tmp/resume-review.log`
 
 Restart a service: `launchctl unload ~/Library/LaunchAgents/com.user.kokoro-tts.plist && launchctl load ~/Library/LaunchAgents/com.user.kokoro-tts.plist`
 
