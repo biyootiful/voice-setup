@@ -6,7 +6,7 @@ A local, private voice + AI workflow for Apple-Silicon macOS:
 - **Auto-read** — Claude Code's replies are read aloud in a natural neural voice (Kokoro); **Option+Esc** stops it.
 - **Approval alerts** — a chime + banner + spoken alert when Claude is waiting on you, even in another app.
 - **Reply drafter** — highlight any message (Slack, email, ticket, doc) and press **Ctrl+Cmd+S**; Claude Code reads your repos and drops a paste-ready reply on your clipboard.
-- **PR reviewer** — copy a GitHub PR link and press **Ctrl+Cmd+P**; Claude reviews the diff and leaves a **pending** review (inline comments) that you submit. Needs the `gh` CLI logged in.
+- **PR reviewer** — copy one or more GitHub PR links (even a whole Slack message — it extracts every PR link and ignores the rest) and press **Ctrl+Cmd+P**; Claude reviews each diff and leaves a **pending** review (inline comments) you submit. Needs the `gh` CLI logged in.
 
 Everything runs locally except the reply drafter and the read-aloud, which use your existing **Claude Code subscription** (no extra API cost).
 
