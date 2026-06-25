@@ -135,11 +135,11 @@ hs.hotkey.bind({ "ctrl", "cmd" }, "s", draftReply)
 -- reviews the diff and leaves a PENDING review (inline comments) under your
 -- work gh account; you submit it on GitHub.
 local function reviewPR()
-  local url = hs.pasteboard.getContents()
-  if not url or not url:match("^https://github%.com/[^/]+/[^/]+/pull/%d+") then
-    hs.alert.show("Copy a GitHub PR link first, then ⌃⌘P"); return
+  local clip = hs.pasteboard.getContents()
+  if not clip or not clip:match("https?://github%.com/[^/]+/[^/]+/pull/%d+") then
+    hs.alert.show("Copy text containing a GitHub PR link, then ⌃⌘P"); return
   end
-  hs.alert.show("🔍  reviewing PR…  (pending review when done)", 2)
+  hs.alert.show("🔍  reviewing PR(s)…  (pending review when done)", 2)
   local task = hs.task.new(PR_REVIEW, function(code, stdout, stderr)
     if code == 0 then
       hs.notify.new({ title = "PR review posted (pending — you submit)",
@@ -148,7 +148,7 @@ local function reviewPR()
     else
       hs.alert.show("PR review failed — see /tmp/pr-review.log")
     end
-  end, { url })
+  end, { clip })
   task:start()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "p", reviewPR)
