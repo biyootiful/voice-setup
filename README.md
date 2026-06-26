@@ -2,7 +2,7 @@
 
 A local, private voice + AI workflow for Apple-Silicon macOS:
 
-- **Dictation** — hold **Option+Space**, talk, release → it types into any app (whisper.cpp, on-device).
+- **Dictation** — hold **Option+Space**, talk, release → it types into any app (whisper.cpp, on-device). Hold **Option+Shift+Space** instead for *clean dictation*: it transcribes, then auto-revises into tight prose before typing.
 - **Auto-read** — Claude Code's replies are read aloud in a natural neural voice (Kokoro); **Option+Esc** stops it.
 - **Approval alerts** — a chime + banner + spoken alert when Claude is waiting on you, even in another app.
 - **Reply drafter** — highlight any message (Slack, email, ticket, doc) and press **Ctrl+Cmd+S**; Claude Code reads your repos and drops a paste-ready reply on your clipboard.
@@ -50,7 +50,8 @@ The installer (idempotent — safe to re-run) will:
 
 | Keys | Action |
 |------|--------|
-| **Option + Space** (hold) | Dictate; release to type |
+| **Option + Space** (hold) | Dictate; release to type (raw) |
+| **Option + Shift + Space** (hold) | Clean dictation; transcribes, auto-revises, types the polished version |
 | **Option + Esc** | Stop the voice reading |
 | **Ctrl + Cmd + S** | Draft a reply to highlighted text → clipboard |
 | **Ctrl + Cmd + P** | Review the copied GitHub PR link(s) → pending review you submit |
