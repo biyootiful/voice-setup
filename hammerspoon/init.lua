@@ -106,14 +106,11 @@ hs.hotkey.bind({ "alt" }, "escape", stopReading)
 
 -- Ctrl+Cmd+S = draft a reply to the highlighted message (any app)
 local function draftReply()
-  local saved = hs.pasteboard.getContents()
-  hs.pasteboard.clearContents()
-  hs.eventtap.keyStroke({ "cmd" }, "c")
-  hs.timer.doAfter(0.15, function()
+  hs.eventtap.keyStroke({ "cmd" }, "c")            -- try to copy the highlighted message
+  hs.timer.doAfter(0.2, function()
     local q = hs.pasteboard.getContents()
-    if saved then hs.pasteboard.setContents(saved) end
     if not q or q:gsub("%s", "") == "" then
-      hs.alert.show("Highlight the message first, then ⌃⌘S"); return
+      hs.alert.show("Highlight the message first (in a terminal, ⌘C it), then ⌃⌘S"); return
     end
     hs.alert.show("✍️  drafting reply…  (I'll ping you when ready)", 2)
     local task = hs.task.new(DRAFT_REPLY, function(code, stdout, stderr)
@@ -179,14 +176,11 @@ hs.hotkey.bind({ "ctrl", "cmd" }, "h", reviewResumes)
 
 -- Ctrl+Cmd+E = revise highlighted text into concise Slack style, paste-ready.
 local function reviseSelection()
-  local saved = hs.pasteboard.getContents()
-  hs.pasteboard.clearContents()
   hs.eventtap.keyStroke({ "cmd" }, "c")
-  hs.timer.doAfter(0.12, function()
+  hs.timer.doAfter(0.2, function()
     local t = hs.pasteboard.getContents()
     if not t or t:gsub("%s", "") == "" then
-      if saved then hs.pasteboard.setContents(saved) end
-      hs.alert.show("Highlight text first, then ⌃⌘E"); return
+      hs.alert.show("Nothing to revise (in a terminal, ⌘C the text first)"); return
     end
     hs.alert.show("✏️  revising…", 1.5)
     local task = hs.task.new(REVISE_TEXT, function(code, stdout, stderr)
@@ -195,7 +189,6 @@ local function reviseSelection()
         hs.pasteboard.setContents(out)
         hs.alert.show("✅  revised — ⌘V to paste", 2)
       else
-        if saved then hs.pasteboard.setContents(saved) end
         hs.alert.show("revise failed — see /tmp/revise-text.log")
       end
     end, { t })
@@ -214,18 +207,16 @@ local function stopSpeaking()
   hs.alert.show("🔇 stopped", 0.4)
 end
 local function speakSelection()
-  if sayTask then stopSpeaking(); return end
-  local saved = hs.pasteboard.getContents()
-  hs.pasteboard.clearContents()
-  hs.eventtap.keyStroke({ "cmd" }, "c")
-  hs.timer.doAfter(0.12, function()
+  hs.eventtap.keyStroke({ "cmd" }, "c")               -- try to copy the highlighted text
+  hs.timer.doAfter(0.2, function()
     local text = hs.pasteboard.getContents()
-    if saved then hs.pasteboard.setContents(saved) end
-    if not text or text:gsub("%s", "") == "" then hs.alert.show("nothing selected to read"); return end
-    hs.alert.show("🔊 reading…  (⌃⌘R or ⌃⌘. to stop)", 1)
-    local args = TTS_VOICE and { "-v", TTS_VOICE, text } or { text }
-    sayTask = hs.task.new("/usr/bin/say", function() sayTask = nil end, args)
-    sayTask:start()
+    if not text or text:gsub("%s", "") == "" then
+      hs.alert.show("nothing to read (in a terminal, ⌘C the text first)"); return
+    end
+    hs.alert.show("🔊 reading…  (Option+Esc or ⌃⌘. to stop)", 1)
+    -- read via the Kokoro neural server — same natural voice as the auto-read
+    hs.task.new(CURL_BIN, nil,
+      { "-s", "--max-time", "10", "-X", "POST", "--data-binary", text, "http://127.0.0.1:8123/speak" }):start()
   end)
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "r", speakSelection)
