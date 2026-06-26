@@ -23,6 +23,8 @@ local REC_BIN  = firstExisting({ "/opt/homebrew/bin/rec", "/usr/local/bin/rec" }
 local CURL_BIN = "/usr/bin/curl"
 local CLIP     = "/tmp/whisper_clip.wav"
 local ENDPOINT = "http://127.0.0.1:8080/inference"
+local COPY_DICTATION = true   -- also copy dictated text to the clipboard, so you
+                              -- can press ⌃⌘E right after to revise it
 local DRAFT_REPLY = HOME .. "/.local/bin/draft-reply.sh"
 local PR_REVIEW   = HOME .. "/.local/bin/pr-review.sh"
 local RESUME_REVIEW = HOME .. "/.local/bin/resume-review.sh"
@@ -43,6 +45,7 @@ local function transcribeAndType()
     local text = stdout:gsub("^%s+", ""):gsub("%s+$", "")
     if text == "" or text == "[BLANK_AUDIO]" then return end
     hs.eventtap.keyStrokes(text .. " ")
+    if COPY_DICTATION then hs.pasteboard.setContents(text) end  -- so ⌃⌘E can revise it
   end, { "-s", ENDPOINT, "-F", "file=@" .. CLIP, "-F", "response_format=text" })
   curlTask:start()
 end
