@@ -26,6 +26,7 @@ local ENDPOINT = "http://127.0.0.1:8080/inference"
 local DRAFT_REPLY = HOME .. "/.local/bin/draft-reply.sh"
 local PR_REVIEW   = HOME .. "/.local/bin/pr-review.sh"
 local RESUME_REVIEW = HOME .. "/.local/bin/resume-review.sh"
+local REVISE_TEXT   = HOME .. "/.local/bin/revise-text.sh"
 -- --------------------------------
 
 local recording = false
@@ -176,6 +177,33 @@ local function reviewResumes()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "h", reviewResumes)
 
+-- Ctrl+Cmd+E = revise highlighted text into concise Slack style, paste-ready.
+local function reviseSelection()
+  local saved = hs.pasteboard.getContents()
+  hs.pasteboard.clearContents()
+  hs.eventtap.keyStroke({ "cmd" }, "c")
+  hs.timer.doAfter(0.12, function()
+    local t = hs.pasteboard.getContents()
+    if not t or t:gsub("%s", "") == "" then
+      if saved then hs.pasteboard.setContents(saved) end
+      hs.alert.show("Highlight text first, then ⌃⌘E"); return
+    end
+    hs.alert.show("✏️  revising…", 1.5)
+    local task = hs.task.new(REVISE_TEXT, function(code, stdout, stderr)
+      local out = (stdout or ""):gsub("^%s+", ""):gsub("%s+$", "")
+      if code == 0 and out ~= "" then
+        hs.pasteboard.setContents(out)
+        hs.alert.show("✅  revised — ⌘V to paste", 2)
+      else
+        if saved then hs.pasteboard.setContents(saved) end
+        hs.alert.show("revise failed — see /tmp/revise-text.log")
+      end
+    end, { t })
+    task:start()
+  end)
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "e", reviseSelection)
+
 -- Ctrl+Cmd+R = read highlighted text aloud (macOS `say`); Ctrl+Cmd+. = stop
 local TTS_VOICE = nil
 local sayTask   = nil
@@ -203,4 +231,4 @@ end
 hs.hotkey.bind({ "ctrl", "cmd" }, "r", speakSelection)
 hs.hotkey.bind({ "ctrl", "cmd" }, ".", stopSpeaking)
 
-hs.alert.show("Voice setup ready — ⌥Space talk · ⌥Esc stop · ⌃⌘S draft · ⌃⌘P PR · ⌃⌘H resumes")
+hs.alert.show("Voice setup ready — ⌥Space talk · ⌃⌘S draft · ⌃⌘P PR · ⌃⌘H resumes · ⌃⌘E revise")
