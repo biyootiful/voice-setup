@@ -60,7 +60,14 @@ The installer (idempotent — safe to re-run) will:
 | **Ctrl + Cmd + R** | Read highlighted text aloud (macOS `say`) |
 | **Ctrl + Cmd + .** | Stop reading |
 
+## Seeing the shortcuts
+
+- Click the **🎙️ menu-bar icon** for the full command list, plus **Edit shortcuts config**, **Edit reply-repos config**, and **Reload config**.
+- Or press **⌃⌘/** to toggle an on-screen cheat sheet (⌃⌘/ again to hide).
+
 ## Configuration
+
+All the hotkeys and toggles live in one file: **`~/.hammerspoon/init.lua`** (open it from the 🎙️ menu → *Edit shortcuts config*). Other knobs:
 
 - **Reply drafter repos** — `~/.config/voice-setup/reply-repos.conf` (see `config/reply-repos.conf.example`).
 - **TTS voice / speed** — env vars on the Kokoro service: `KOKORO_VOICE` (default `af_heart`; try `af_bella`, `am_michael`, `bm_george`), `KOKORO_SPEED`, `KOKORO_CHUNK_CHARS`. Set them in `~/Library/LaunchAgents/com.user.kokoro-tts.plist` (add an `EnvironmentVariables` dict) and reload.

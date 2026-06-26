@@ -237,4 +237,53 @@ end
 hs.hotkey.bind({ "ctrl", "cmd" }, "r", speakSelection)
 hs.hotkey.bind({ "ctrl", "cmd" }, ".", stopSpeaking)
 
-hs.alert.show("Voice setup ready — ⌥Space talk · ⌥⇧Space clean · ⌃⌘E revise · ⌃⌘S draft · ⌃⌘P PR · ⌃⌘H resumes")
+-- ============================================================
+--  Cheat sheet + menu bar — see every shortcut anytime.
+--    Click the 🎙️ menu-bar icon, or press ⌃⌘/ for an overlay.
+--  (One shared list below drives both — edit here to update both.)
+-- ============================================================
+local HOMEDIR = os.getenv("HOME")
+local COMMANDS = {
+  { "⌥ Space (hold)",     "Dictate — raw, types as you speak" },
+  { "⌥ ⇧ Space (hold)",   "Clean dictation — transcribe, auto-revise, type" },
+  { "⌃ ⌘ E",              "Revise highlighted text (concise, Slack style)" },
+  { "⌃ ⌘ R",              "Read highlighted text aloud (Kokoro voice)" },
+  { "⌥ Esc  /  ⌃ ⌘ .",    "Stop reading" },
+  { "⌃ ⌘ S",              "Draft a reply to the highlighted message" },
+  { "⌃ ⌘ P",              "Review GitHub PR(s) from copied link(s)" },
+  { "⌃ ⌘ H",              "Review resume PDFs (file picker)" },
+}
+
+local cheatId = nil
+local function toggleCheatSheet()
+  if cheatId then hs.alert.closeSpecific(cheatId); cheatId = nil; return end
+  local lines = { "⌨️   Voice & AI shortcuts", "" }
+  for _, c in ipairs(COMMANDS) do lines[#lines + 1] = c[1] .. "      " .. c[2] end
+  lines[#lines + 1] = ""
+  lines[#lines + 1] = "Claude's replies are read aloud automatically."
+  lines[#lines + 1] = "⌃⌘/ to hide  ·  click 🎙️ in the menu bar for config + reload"
+  cheatId = hs.alert.show(table.concat(lines, "\n"),
+    { textSize = 16, radius = 12 }, hs.screen.mainScreen(), 999999)
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "/", toggleCheatSheet)
+
+voiceMenubar = hs.menubar.new()
+if voiceMenubar then
+  voiceMenubar:setTitle("🎙️")
+  voiceMenubar:setTooltip("Voice & AI shortcuts")
+  voiceMenubar:setMenu(function()
+    local m = { { title = "Voice & AI — shortcuts", disabled = true } }
+    for _, c in ipairs(COMMANDS) do m[#m + 1] = { title = c[1] .. "   " .. c[2], disabled = true } end
+    m[#m + 1] = { title = "-" }
+    m[#m + 1] = { title = "Show cheat sheet  (⌃⌘/)", fn = toggleCheatSheet }
+    m[#m + 1] = { title = "Edit shortcuts config (init.lua)…",
+                  fn = function() hs.execute("open -t '" .. HOMEDIR .. "/.hammerspoon/init.lua'") end }
+    m[#m + 1] = { title = "Edit reply-repos config…",
+                  fn = function() hs.execute("mkdir -p '" .. HOMEDIR .. "/.config/voice-setup'; touch '" .. HOMEDIR .. "/.config/voice-setup/reply-repos.conf'; open -t '" .. HOMEDIR .. "/.config/voice-setup/reply-repos.conf'") end }
+    m[#m + 1] = { title = "-" }
+    m[#m + 1] = { title = "Reload config", fn = function() hs.reload() end }
+    return m
+  end)
+end
+
+hs.alert.show("Voice setup ready — press ⌃⌘/ or click 🎙️ for all shortcuts", 2)
