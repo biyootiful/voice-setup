@@ -31,9 +31,10 @@ local RESUME_REVIEW = HOME .. "/.local/bin/resume-review.sh"
 local REVISE_TEXT   = HOME .. "/.local/bin/revise-text.sh"
 -- --------------------------------
 
-local recording = false
-local recTask   = nil
-local recAlert  = nil
+local recording  = false
+local recTask    = nil
+local recAlert   = nil
+local reviseMode = false  -- true when this dictation should be auto-revised before typing
 
 -- Send the recorded clip to the warm whisper-server, then type the result
 local function transcribeAndType()
@@ -44,19 +45,30 @@ local function transcribeAndType()
     end
     local text = stdout:gsub("^%s+", ""):gsub("%s+$", "")
     if text == "" or text == "[BLANK_AUDIO]" then return end
-    hs.eventtap.keyStrokes(text .. " ")
-    if COPY_DICTATION then hs.pasteboard.setContents(text) end  -- so ⌃⌘E can revise it
+    if reviseMode then
+      hs.alert.show("✏️  cleaning up…", 2)
+      hs.task.new(REVISE_TEXT, function(c, out, err)
+        local clean = (out or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if clean == "" then clean = text end
+        hs.eventtap.keyStrokes(clean .. " ")
+      end, { text }):start()
+    else
+      hs.eventtap.keyStrokes(text .. " ")
+      if COPY_DICTATION then hs.pasteboard.setContents(text) end  -- so ⌃⌘E can revise it
+    end
   end, { "-s", ENDPOINT, "-F", "file=@" .. CLIP, "-F", "response_format=text" })
   curlTask:start()
 end
 
-local function startRecording()
+local function startRecording(revise)
   if recording then return end
   recording = true
+  reviseMode = revise and true or false
   -- silence any TTS so it doesn't bleed into the mic and garble the transcript
   hs.task.new(CURL_BIN, nil, { "-s", "--max-time", "2", "http://127.0.0.1:8123/stop" }):start()
   hs.task.new("/usr/bin/killall", nil, { "say" }):start()
-  recAlert = hs.alert.show("🎤  Listening…  (release Option+Space to type)", 86400)
+  recAlert = hs.alert.show(reviseMode and "🎤  Listening…  (clean dictation — auto-revise)"
+                                       or "🎤  Listening…  (release Option+Space to type)", 86400)
   recTask = hs.task.new(REC_BIN, function() transcribeAndType() end,
     { "-q", "-r", "16000", "-c", "1", "-b", "16", CLIP })
   recTask:start()
@@ -78,7 +90,7 @@ ptt = hs.eventtap.new({ et.keyDown, et.keyUp, et.flagsChanged }, function(e)
   local kc  = e:getKeyCode()
   if typ == et.keyDown then
     if kc == KC_SPACE and e:getFlags().alt then
-      if not recording then startRecording() end
+      if not recording then startRecording(e:getFlags().shift) end  -- +Shift = clean dictation
       return true
     end
     return false
@@ -225,4 +237,4 @@ end
 hs.hotkey.bind({ "ctrl", "cmd" }, "r", speakSelection)
 hs.hotkey.bind({ "ctrl", "cmd" }, ".", stopSpeaking)
 
-hs.alert.show("Voice setup ready — ⌥Space talk · ⌃⌘S draft · ⌃⌘P PR · ⌃⌘H resumes · ⌃⌘E revise")
+hs.alert.show("Voice setup ready — ⌥Space talk · ⌥⇧Space clean · ⌃⌘E revise · ⌃⌘S draft · ⌃⌘P PR · ⌃⌘H resumes")
