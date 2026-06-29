@@ -10,7 +10,7 @@ LOG=/tmp/pr-review.log
 CONFIG="$HOME/.config/voice-setup/reply-repos.conf"
 [ -f "$CONFIG" ] && source "$CONFIG"
 : "${GIT_BASE:=$HOME/Documents/git}"
-: "${GH_ACCOUNT:=insticator-biY}"
+: "${GH_ACCOUNT:=}"   # set in reply-repos.conf; empty = use gh's active account
 
 input="${1:-$(cat)}"
 [ -z "$input" ] && { echo "[$(date)] no input" >> "$LOG"; exit 0; }
@@ -25,7 +25,7 @@ if [[ ${#urls[@]} -eq 0 ]]; then
   echo "NO_PR_URL"; exit 1
 fi
 
-gh auth switch --hostname github.com --user "$GH_ACCOUNT" >/dev/null 2>&1 || true
+[ -n "$GH_ACCOUNT" ] && gh auth switch --hostname github.com --user "$GH_ACCOUNT" >/dev/null 2>&1 || true
 CLAUDE="$(command -v claude)"
 [[ -z "$CLAUDE" ]] && { echo "[$(date)] claude CLI not found" >> "$LOG"; exit 1; }
 
