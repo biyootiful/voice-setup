@@ -9,6 +9,7 @@ A local, private voice + AI workflow for Apple-Silicon macOS:
 - **PR reviewer** — copy one or more GitHub PR links (even a whole Slack message — it extracts every PR link and ignores the rest) and press **Ctrl+Cmd+P**; Claude reviews each diff and leaves a **pending** review (inline comments) you submit. Needs the `gh` CLI logged in.
 - **Resume reviewer** — download the resume PDFs (Slack "Download all" → `~/Downloads`), press **Ctrl+Cmd+H**, pick the PDFs in the file dialog (multi-select), and Claude drops hiring feedback per candidate on your clipboard. PII is sent to Claude — you review before sharing.
 - **Text reviser** — highlight any text and press **Ctrl+Cmd+E**; Claude rewrites it into direct, concise Slack-style communication (your voice preserved, no AI tone), paste-ready on the clipboard.
+- **Jira agent** — copy a Jira ticket URL and press **Ctrl+Cmd+J**; pick the product group, and it spins up a new kitty Claude Code session scoped to just that group's repos, reads the ticket (via the Atlassian connector), and hands you a read-only implementation plan you then drive. Needs the Atlassian MCP connected and the `kitty` terminal.
 
 Everything runs locally except the reply drafter and the read-aloud, which use your existing **Claude Code subscription** (no extra API cost).
 
@@ -56,6 +57,7 @@ The installer (idempotent — safe to re-run) will:
 | **Ctrl + Cmd + S** | Draft a reply to highlighted text → clipboard |
 | **Ctrl + Cmd + P** | Review the copied GitHub PR link(s) → pending review you submit |
 | **Ctrl + Cmd + H** | Pick resume PDFs → hiring feedback on clipboard |
+| **Ctrl + Cmd + J** | Copied Jira URL → scoped planning session (pick group) |
 | **Ctrl + Cmd + E** | Revise highlighted text → concise Slack style on clipboard |
 | **Ctrl + Cmd + R** | Read highlighted text aloud (macOS `say`) |
 | **Ctrl + Cmd + .** | Stop reading |
@@ -70,6 +72,7 @@ The installer (idempotent — safe to re-run) will:
 All the hotkeys and toggles live in one file: **`~/.hammerspoon/init.lua`** (open it from the 🎙️ menu → *Edit shortcuts config*). Other knobs:
 
 - **Reply drafter repos** — `~/.config/voice-setup/reply-repos.conf` (see `config/reply-repos.conf.example`).
+- **Jira agent product groups** — `~/.config/voice-setup/repo-groups.conf` (see `config/repo-groups.conf.example`). For the Jira agent, also connect Atlassian once via `/mcp` in Claude Code.
 - **TTS voice / speed** — env vars on the Kokoro service: `KOKORO_VOICE` (default `af_heart`; try `af_bella`, `am_michael`, `bm_george`), `KOKORO_SPEED`, `KOKORO_CHUNK_CHARS`. Set them in `~/Library/LaunchAgents/com.user.kokoro-tts.plist` (add an `EnvironmentVariables` dict) and reload.
 - **Whisper model** — change the model name in `~/.local/bin/whisper-dictation-server.sh`.
 
@@ -80,6 +83,7 @@ All the hotkeys and toggles live in one file: **`~/.hammerspoon/init.lua`** (ope
 - reply drafter: `/tmp/draft-reply.log`
 - PR reviewer: `/tmp/pr-review.log`
 - resume reviewer: `/tmp/resume-review.log`
+- Jira agent: `/tmp/jira-agent.log`
 
 Restart a service: `launchctl unload ~/Library/LaunchAgents/com.user.kokoro-tts.plist && launchctl load ~/Library/LaunchAgents/com.user.kokoro-tts.plist`
 

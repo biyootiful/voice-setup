@@ -29,6 +29,7 @@ local DRAFT_REPLY = HOME .. "/.local/bin/draft-reply.sh"
 local PR_REVIEW   = HOME .. "/.local/bin/pr-review.sh"
 local RESUME_REVIEW = HOME .. "/.local/bin/resume-review.sh"
 local REVISE_TEXT   = HOME .. "/.local/bin/revise-text.sh"
+local JIRA_AGENT    = HOME .. "/.local/bin/jira-agent.sh"
 -- --------------------------------
 
 local recording  = false
@@ -189,6 +190,26 @@ local function reviewResumes()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "h", reviewResumes)
 
+-- Ctrl+Cmd+J = Jira ticket → planning session. Copy the ticket URL, pick the
+-- product group; spins up a kitty Claude session scoped to that group's repos,
+-- reads the ticket via the Atlassian MCP, and gives a read-only plan.
+local function jiraAgent()
+  local clip = hs.pasteboard.getContents()
+  if not clip or not clip:match("[A-Z][A-Z0-9]+%-%d+") then
+    hs.alert.show("Copy a Jira ticket URL first, then ⌃⌘J"); return
+  end
+  hs.alert.show("🎫  pick the product group…", 1.5)
+  hs.task.new(JIRA_AGENT, function(code, stdout, stderr)
+    local out = (stdout or ""):gsub("%s+$", "")
+    if code == 0 and out:match("^OK") then
+      hs.alert.show("🚀  session opening — agent is reading the ticket", 2.5)
+    elseif out ~= "CANCELLED" then
+      hs.alert.show("Jira agent failed — see /tmp/jira-agent.log")
+    end
+  end, { clip }):start()
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "j", jiraAgent)
+
 -- Ctrl+Cmd+E = revise highlighted text into concise Slack style, paste-ready.
 local function reviseSelection()
   hs.eventtap.keyStroke({ "cmd" }, "c")
@@ -252,6 +273,7 @@ local COMMANDS = {
   { "⌃ ⌘ S",              "Draft a reply to the highlighted message" },
   { "⌃ ⌘ P",              "Review GitHub PR(s) from copied link(s)" },
   { "⌃ ⌘ H",              "Review resume PDFs (file picker)" },
+  { "⌃ ⌘ J",              "Jira ticket → scoped planning session (copy URL)" },
 }
 
 local cheatId = nil
