@@ -45,5 +45,17 @@ KITTY="/Applications/kitty.app/Contents/MacOS/kitty"; [[ -x "$KITTY" ]] || KITTY
 
 echo "[$(date)] launching: group=$group primary=$primary repos=$REPO_LIST" >> "$LOG"
 # NOTE: prompt must come BEFORE --add-dir (it's variadic and would eat the prompt)
-"$KITTY" --directory "$GIT_BASE/$primary" "$CLAUDE" "$PROMPT" "${add_args[@]}" >>"$LOG" 2>&1 &
+launched=0
+# If kitty remote control is on (listen_on unix:/tmp/kitty in kitty.conf), open a
+# TAB in the running window; otherwise fall back to a new window.
+sock="$(ls -t /tmp/kitty-* 2>/dev/null | head -1)"
+if [[ -n "$sock" ]]; then
+  if "$KITTY" @ --to "unix:$sock" launch --type=tab --cwd "$GIT_BASE/$primary" \
+       "$CLAUDE" "$PROMPT" "${add_args[@]}" >>"$LOG" 2>&1; then
+    launched=1
+  fi
+fi
+if [[ $launched -eq 0 ]]; then
+  "$KITTY" --directory "$GIT_BASE/$primary" "$CLAUDE" "$PROMPT" "${add_args[@]}" >>"$LOG" 2>&1 &
+fi
 echo "OK $group"
