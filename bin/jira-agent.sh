@@ -44,5 +44,6 @@ KITTY="/Applications/kitty.app/Contents/MacOS/kitty"; [[ -x "$KITTY" ]] || KITTY
 [[ -z "$CLAUDE" || -z "$KITTY" ]] && { echo "[$(date)] missing claude or kitty" >> "$LOG"; echo "MISSING_TOOL"; exit 1; }
 
 echo "[$(date)] launching: group=$group primary=$primary repos=$REPO_LIST" >> "$LOG"
-"$KITTY" --directory "$GIT_BASE/$primary" "$CLAUDE" "${add_args[@]}" "$PROMPT" >>"$LOG" 2>&1 &
+# NOTE: prompt must come BEFORE --add-dir (it's variadic and would eat the prompt)
+"$KITTY" --directory "$GIT_BASE/$primary" "$CLAUDE" "$PROMPT" "${add_args[@]}" >>"$LOG" 2>&1 &
 echo "OK $group"
