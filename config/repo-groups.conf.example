@@ -1,0 +1,15 @@
+# Product groups for the Jira agent (Ctrl+Cmd+J). Copy to
+# ~/.config/voice-setup/repo-groups.conf and replace with YOUR repos.
+#
+# A group = repos that touch each other. Firing ⌃⌘J lets you pick the group, so
+# the agent only sees those repos (keeps it from wandering into unrelated code).
+# Names are dir names under GIT_BASE (from reply-repos.conf). Missing dirs are
+# skipped automatically.
+
+typeset -gA REPO_GROUPS
+REPO_GROUPS[backend]="my-api my-worker"
+REPO_GROUPS[frontend]="my-web my-admin-ui"
+REPO_GROUPS[platform]="my-api my-web my-infra"
+
+# Order the groups appear in the picker
+GROUP_ORDER="backend frontend platform"
