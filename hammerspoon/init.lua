@@ -30,6 +30,7 @@ local PR_REVIEW   = HOME .. "/.local/bin/pr-review.sh"
 local RESUME_REVIEW = HOME .. "/.local/bin/resume-review.sh"
 local REVISE_TEXT   = HOME .. "/.local/bin/revise-text.sh"
 local JIRA_AGENT    = HOME .. "/.local/bin/jira-agent.sh"
+local EMAIL_AGENT   = HOME .. "/.local/bin/email-agent.sh"
 -- --------------------------------
 
 local recording  = false
@@ -210,6 +211,22 @@ local function jiraAgent()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "j", jiraAgent)
 
+-- Ctrl+Cmd+M = email triage. Opens a kitty Claude session that reads recent
+-- inbox via the Gmail MCP, marks known automated noise as read, summarizes
+-- everything, and drafts replies (never sends) for client/technical threads.
+local function emailAgent()
+  hs.alert.show("📧  triaging inbox…  (session opening)", 2)
+  hs.task.new(EMAIL_AGENT, function(code, stdout, stderr)
+    local out = (stdout or ""):gsub("%s+$", "")
+    if code == 0 and out:match("^OK") then
+      hs.alert.show("🚀  email triage running — check the new session", 2.5)
+    else
+      hs.alert.show("Email agent failed — see /tmp/email-agent.log")
+    end
+  end, {}):start()
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "m", emailAgent)
+
 -- Ctrl+Cmd+E = revise highlighted text into concise Slack style, paste-ready.
 local function reviseSelection()
   hs.eventtap.keyStroke({ "cmd" }, "c")
@@ -274,6 +291,7 @@ local COMMANDS = {
   { "⌃ ⌘ P",              "Review GitHub PR(s) from copied link(s)" },
   { "⌃ ⌘ H",              "Review resume PDFs (file picker)" },
   { "⌃ ⌘ J",              "Jira ticket → scoped planning session (copy URL)" },
+  { "⌃ ⌘ M",              "Email triage — mark noise read, summarize, draft replies" },
 }
 
 local cheatId = nil

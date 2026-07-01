@@ -4,7 +4,7 @@
 # a new kitty window running `claude` scoped to that group's repos, seeded to
 # read the ticket (via the Atlassian MCP) and produce an implementation plan.
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 LOG=/tmp/jira-agent.log
 
 source "$HOME/.config/voice-setup/reply-repos.conf"  2>/dev/null
@@ -43,19 +43,13 @@ CLAUDE="$(command -v claude)"
 KITTY="/Applications/kitty.app/Contents/MacOS/kitty"; [[ -x "$KITTY" ]] || KITTY="$(command -v kitty)"
 [[ -z "$CLAUDE" || -z "$KITTY" ]] && { echo "[$(date)] missing claude or kitty" >> "$LOG"; echo "MISSING_TOOL"; exit 1; }
 
-echo "[$(date)] launching: group=$group primary=$primary repos=$REPO_LIST" >> "$LOG"
-# NOTE: prompt must come BEFORE --add-dir (it's variadic and would eat the prompt)
-launched=0
-# If kitty remote control is on (listen_on unix:/tmp/kitty in kitty.conf), open a
-# TAB in the running window; otherwise fall back to a new window.
-sock="$(ls -t /tmp/kitty-* 2>/dev/null | head -1)"
-if [[ -n "$sock" ]]; then
-  if "$KITTY" @ --to "unix:$sock" launch --type=tab --cwd "$GIT_BASE/$primary" \
-       "$CLAUDE" "$PROMPT" "${add_args[@]}" >>"$LOG" 2>&1; then
-    launched=1
-  fi
-fi
-if [[ $launched -eq 0 ]]; then
-  "$KITTY" --directory "$GIT_BASE/$primary" "$CLAUDE" "$PROMPT" "${add_args[@]}" >>"$LOG" 2>&1 &
-fi
+TITLE="$KEY · $group"
+echo "[$(date)] launching: group=$group primary=$primary repos=$REPO_LIST title=$TITLE" >> "$LOG"
+# All agent sessions run inside ONE kitty instance (--single-instance), so each is
+# a window of the same process. That makes cmd-` cycle between them (like browser
+# windows) and Mission Control group them. -T pins the window title to the ticket
+# so you can tell sessions apart — claude's TUI would otherwise overwrite it.
+# NOTE: prompt must come BEFORE --add-dir (it's variadic and would eat the prompt).
+"$KITTY" --single-instance --directory "$GIT_BASE/$primary" --title "$TITLE" \
+  "$CLAUDE" "$PROMPT" "${add_args[@]}" >>"$LOG" 2>&1 &
 echo "OK $group"

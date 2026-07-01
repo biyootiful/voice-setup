@@ -97,9 +97,15 @@ tmp="$(mktemp)"
   | .hooks.Notification = [{"hooks":[{"type":"command","command":$notify,"async":true}]}]
 ' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
 
-# ---- 8. Reply-drafter config ----------------------------------------------
+# ---- 8. Agent configs ------------------------------------------------------
 CONF="$HOME/.config/voice-setup/reply-repos.conf"
 [[ -f "$CONF" ]] || { cp "$HERE/config/reply-repos.conf.example" "$CONF"; warn "Edit $CONF to point at YOUR repos (for Ctrl+Cmd+S)."; }
+
+GROUPS_CONF="$HOME/.config/voice-setup/repo-groups.conf"
+[[ -f "$GROUPS_CONF" ]] || { cp "$HERE/config/repo-groups.conf.example" "$GROUPS_CONF"; warn "Edit $GROUPS_CONF to group YOUR repos (for the Jira agent, Ctrl+Cmd+J)."; }
+
+EMAIL_CONF="$HOME/.config/voice-setup/email-triage.conf"
+[[ -f "$EMAIL_CONF" ]] || { cp "$HERE/config/email-triage.conf.example" "$EMAIL_CONF"; warn "Edit $EMAIL_CONF with your domain + noise senders (for email triage, Ctrl+Cmd+M)."; }
 
 command -v claude >/dev/null 2>&1 || warn "Claude Code CLI ('claude') not found — install it and run 'claude' once to log in, for the reply drafter + voice hooks."
 
