@@ -1,0 +1,27 @@
+# Email triage agent (Ctrl+Cmd+M) config. Copy to
+# ~/.config/voice-setup/email-triage.conf and edit with YOUR values.
+#
+# The agent reads recent inbox via the Gmail MCP, marks the senders below as
+# read, summarizes the rest, and drafts replies (never sends) for threads that
+# need you. Nothing here is committed — keep your real values in the copy.
+
+# Repos that hold the technical ground-truth for drafting replies (dir names
+# under GIT_BASE, from reply-repos.conf). The primary is opened as the working
+# dir; the rest are added with --add-dir. If empty, falls back to reply-repos.
+EMAIL_PRIMARY_REPO="my-main-repo"
+EMAIL_ADD_REPOS="my-second-repo my-third-repo"
+
+# Your email addresses — so the agent knows a thread involves you even when
+# you're only CC'd. Space-separated.
+MY_EMAILS="me@work.com me@other.com"
+
+# One line describing YOUR technical domain — what people email you to answer.
+MY_DOMAIN_DESC="<your area, e.g. billing integrations, data pipelines, attribution>"
+
+# Colleagues who routinely CC you for the technical answer (their threads are
+# treated as needing you). Comma-separated names. Optional — leave empty if n/a.
+SALES_COLLEAGUES=""
+
+# Automated / no-reply senders to auto-mark-read as noise. Domains or full
+# addresses, space-separated. These never need a reply — tune to YOUR inbox.
+NOISE_SENDERS="no-reply@example.com notifications@github.com jira@example.atlassian.net newsletters.example.com linkedin.com"

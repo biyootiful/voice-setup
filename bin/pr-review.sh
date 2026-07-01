@@ -4,7 +4,7 @@
 # (or stdin) — e.g. a whole Slack message — and extracts every PR link from it.
 # Posts under the configured work gh account. Nothing is submitted automatically.
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 LOG=/tmp/pr-review.log
 
 CONFIG="$HOME/.config/voice-setup/reply-repos.conf"
