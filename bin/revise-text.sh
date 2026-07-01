@@ -3,7 +3,7 @@
 # Takes the text as $1 (or stdin), prints the revised version to stdout.
 # Keeps the author's voice and meaning; does not sound like AI.
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 LOG=/tmp/revise-text.log
 
 text="${1:-$(cat)}"

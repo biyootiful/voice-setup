@@ -6,7 +6,7 @@
 #
 # NOTE: resumes contain PII; this sends them to Claude via your subscription.
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 LOG=/tmp/resume-review.log
 : "${USER_NAME:=me}"
 

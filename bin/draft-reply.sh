@@ -6,7 +6,7 @@
 #
 # Repos to search are configured in ~/.config/voice-setup/reply-repos.conf
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 LOG=/tmp/draft-reply.log
 
 # ---- config (edit ~/.config/voice-setup/reply-repos.conf) ----
