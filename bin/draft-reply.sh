@@ -54,5 +54,10 @@ out="$("$CLAUDE" -p "$PROMPT" \
   "${add_args[@]}" \
   --allowedTools Read Grep Glob \
   --strict-mcp-config 2>>"$LOG")"
-echo "[$(date)] done exit=$? len=${#out}" >> "$LOG"
+rc=$?
+# Persist the draft to a file too, so it survives a clipboard overwrite (e.g. if
+# you dictate while waiting for the ~2 min codebase search). Recoverable anytime.
+OUT_FILE="/tmp/draft-reply.last.txt"
+print -r -- "$out" > "$OUT_FILE" 2>/dev/null
+echo "[$(date)] done exit=$rc len=${#out} saved=$OUT_FILE" >> "$LOG"
 print -r -- "$out"

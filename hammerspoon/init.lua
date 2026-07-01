@@ -134,10 +134,16 @@ local function draftReply()
       local reply = (stdout or ""):gsub("^%s+", ""):gsub("%s+$", "")
       if code == 0 and reply ~= "" then
         hs.pasteboard.setContents(reply)
-        hs.notify.new({ title = "Reply ready",
-                        informativeText = "Copied — ⌘V to paste.\n" .. reply:sub(1, 140),
-                        soundName = "Glass" }):send()
-        hs.alert.show("✅  reply on clipboard — ⌘V to paste", 2.5)
+        -- Drafting takes ~1-2 min (it searches the codebase), so you may have
+        -- looked away. Chime plays even if notifications are disabled.
+        local chime = hs.sound.getByName("Glass"); if chime then chime:play() end
+        -- Persistent + clickable: click to re-copy, since dictation/other copies
+        -- may have overwritten the clipboard while you waited.
+        hs.notify.new(function() hs.pasteboard.setContents(reply); hs.alert.show("✅  re-copied — ⌘V to paste", 2) end,
+                      { title = "Reply ready — click to re-copy",
+                        informativeText = reply:sub(1, 140),
+                        soundName = "Glass", withdrawAfter = 0 }):send()
+        hs.alert.show("✅  reply ready — ⌘V to paste  (backup: /tmp/draft-reply.last.txt)", 4)
       else
         hs.alert.show("draft failed — see /tmp/draft-reply.log")
       end
