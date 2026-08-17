@@ -73,7 +73,9 @@ All the hotkeys and toggles live in one file: **`~/.hammerspoon/init.lua`** (ope
 
 - **Reply drafter repos** — `~/.config/voice-setup/reply-repos.conf` (see `config/reply-repos.conf.example`).
 - **Jira agent product groups** — `~/.config/voice-setup/repo-groups.conf` (see `config/repo-groups.conf.example`). For the Jira agent, also connect Atlassian once via `/mcp` in Claude Code.
-- **TTS voice / speed** — env vars on the Kokoro service: `KOKORO_VOICE` (default `af_heart`; try `af_bella`, `am_michael`, `bm_george`), `KOKORO_SPEED`, `KOKORO_CHUNK_CHARS`. Set them in `~/Library/LaunchAgents/com.user.kokoro-tts.plist` (add an `EnvironmentVariables` dict) and reload.
+- **TTS voice / speed** — env vars on the Kokoro service: `KOKORO_VOICE` (currently `bf_isabella`), `KOKORO_SPEED`, `KOKORO_CHUNK_CHARS`. Set them in the `EnvironmentVariables` dict of `launchagents/com.user.kokoro-tts.plist`, then re-run `./install.sh` (or copy to `~/Library/LaunchAgents/`, substituting `__HOME__`, and `launchctl unload && load`). Editing only the installed copy works until the next install overwrites it.
+
+  All 54 voices ship inside `voices-v1.0.bin` — nothing extra to download. Prefix is language + gender (`af_`/`am_` American, `bf_`/`bm_` British, then `e`=es, `f`=fr, `h`=hi, `i`=it, `j`=ja, `p`=pt, `z`=zh). Best English options: `af_heart`, `af_bella`, `af_nicole`, `am_michael`, `am_puck`, `bf_emma`, `bf_isabella`, `bm_george`; the rest of the American set is noticeably more synthetic. Non-English voices also need `lang=` changed in `bin/kokoro-tts-server.py`, which hardcodes `en-us`. To audition them all, loop `Kokoro.get_voices()` through `kokoro.create()` using `~/.local/kokoro-venv/bin/python`.
 - **Whisper model** — change the model name in `~/.local/bin/whisper-dictation-server.sh`.
 
 ## Logs / debugging

@@ -8,6 +8,13 @@
     <array>
         <string>__HOME__/.local/bin/kokoro-tts-server.sh</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- Voice / speed / chunking. See README; `bin/kokoro-tts-server.py` reads
+             these at startup, so edit here and reload the agent to change them. -->
+        <key>KOKORO_VOICE</key>
+        <string>bf_isabella</string>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
