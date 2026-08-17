@@ -30,6 +30,7 @@ local PR_REVIEW   = HOME .. "/.local/bin/pr-review.sh"
 local RESUME_REVIEW = HOME .. "/.local/bin/resume-review.sh"
 local REVISE_TEXT   = HOME .. "/.local/bin/revise-text.sh"
 local JIRA_AGENT    = HOME .. "/.local/bin/jira-agent.sh"
+local JIRA_TRIAGE   = HOME .. "/.local/bin/jira-triage.sh"
 local EMAIL_AGENT   = HOME .. "/.local/bin/email-agent.sh"
 -- --------------------------------
 
@@ -217,6 +218,25 @@ local function jiraAgent()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "j", jiraAgent)
 
+-- Ctrl+Cmd+K = Jira board triage. Pick a product group; opens a kitty Claude
+-- session that cross-checks the board against git (develop = stage, main = prod)
+-- and reports what's actually deployed, what drifted, and what has no code yet.
+-- Read-only: JQL reads + git fetch, nothing written to Jira.
+local function jiraTriage()
+  hs.alert.show("📋  pick the board / product group…", 1.5)
+  hs.task.new(JIRA_TRIAGE, function(code, stdout, stderr)
+    local out = (stdout or ""):gsub("%s+$", "")
+    if code == 0 and out:match("^OK") then
+      hs.alert.show("🚀  triaging — fetching repos, then reading the board", 2.5)
+    elseif out == "NO_PROJECTS" then
+      hs.alert.show("Add GROUP_JIRA_PROJECTS for that group in repo-groups.conf", 3)
+    elseif out ~= "CANCELLED" then
+      hs.alert.show("Jira triage failed — see /tmp/jira-triage.log")
+    end
+  end, {}):start()
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "k", jiraTriage)
+
 -- Ctrl+Cmd+M = email triage. Opens a kitty Claude session that reads recent
 -- inbox via the Gmail MCP, marks known automated noise as read, summarizes
 -- everything, and drafts replies (never sends) for client/technical threads.
@@ -297,6 +317,7 @@ local COMMANDS = {
   { "⌃ ⌘ P",              "Review GitHub PR(s) from copied link(s)" },
   { "⌃ ⌘ H",              "Review resume PDFs (file picker)" },
   { "⌃ ⌘ J",              "Jira ticket → scoped planning session (copy URL)" },
+  { "⌃ ⌘ K",              "Jira board triage — what's deployed vs what Jira claims" },
   { "⌃ ⌘ M",              "Email triage — mark noise read, summarize, draft replies" },
 }
 

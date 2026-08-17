@@ -1,7 +1,8 @@
 #!/bin/zsh
 # Spin up a Claude Code session to investigate a Jira ticket (read-only plan).
-# Takes the ticket URL as $1 (or stdin), pops a product-group picker, and opens
-# a new kitty window running `claude` scoped to that group's repos, seeded to
+# Takes the ticket URL as $1 (or stdin), pops a repo picker (the product groups
+# from repo-groups.conf, plus "Custom…" to assemble a one-off set by hand), and
+# opens a new kitty window running `claude` scoped to those repos, seeded to
 # read the ticket (via the Atlassian MCP) and produce an implementation plan.
 
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
@@ -11,6 +12,10 @@ source "$HOME/.config/voice-setup/reply-repos.conf"  2>/dev/null
 source "$HOME/.config/voice-setup/repo-groups.conf"  2>/dev/null
 : "${GIT_BASE:=$HOME/Documents/git}"
 
+PICKER="$HOME/.local/bin/pick-repo-group.sh"
+[[ -r "$PICKER" ]] || PICKER="$(cd "$(dirname "$0")" && pwd)/pick-repo-group.sh"
+source "$PICKER" || { echo "[$(date)] cannot source $PICKER" >> "$LOG"; echo "NO_PICKER"; exit 1; }
+
 url="${1:-$(cat)}"
 url="${url//[[:space:]]/}"
 KEY="$(printf '%s' "$url" | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -1)"
@@ -19,19 +24,16 @@ echo "[$(date)] ticket $KEY ($url)" >> "$LOG"
 
 [[ -z "${GROUP_ORDER:-}" ]] && { echo "[$(date)] no GROUP_ORDER (edit repo-groups.conf)" >> "$LOG"; echo "NO_GROUPS"; exit 1; }
 
-# product-group picker
-items=""
-for g in ${(s: :)GROUP_ORDER}; do items+="\"$g\","; done
-items="${items%,}"
-group="$(osascript -e "choose from list {$items} with prompt \"Jira $KEY — which product group is this ticket about?\"" 2>>"$LOG")"
-[[ -z "$group" || "$group" == "false" ]] && { echo "[$(date)] picker cancelled" >> "$LOG"; echo "CANCELLED"; exit 0; }
+# Which repos? Groups from repo-groups.conf, or "Custom…" to pick by hand.
+pick_repo_group "Jira $KEY — which repos is this ticket about?"
+case $? in
+  0) ;;
+  1) echo "[$(date)] picker cancelled" >> "$LOG"; echo "CANCELLED"; exit 0 ;;
+  *) echo "[$(date)] picker found no usable repos" >> "$LOG"; echo "NO_REPOS"; exit 1 ;;
+esac
 
-# resolve to existing repo dirs
-repos=(${(s: :)REPO_GROUPS[$group]})
-existing=()
-for r in "${repos[@]}"; do [[ -d "$GIT_BASE/$r" ]] && existing+=("$r"); done
-[[ ${#existing[@]} -eq 0 ]] && { echo "[$(date)] no existing repos for $group" >> "$LOG"; echo "NO_REPOS"; exit 1; }
-
+group="$PICK_LABEL"
+existing=("${PICK_REPOS[@]}")
 primary="${existing[1]}"
 add_args=()
 (( ${#existing[@]} > 1 )) && for r in ${existing[2,-1]}; do add_args+=(--add-dir "$GIT_BASE/$r"); done
@@ -45,6 +47,10 @@ KITTY="/Applications/kitty.app/Contents/MacOS/kitty"; [[ -x "$KITTY" ]] || KITTY
 
 TITLE="$KEY · $group"
 echo "[$(date)] launching: group=$group primary=$primary repos=$REPO_LIST title=$TITLE" >> "$LOG"
+# Sessions are keyed by cwd, and --add-dir is not persisted across a resume, so
+# log the exact command that brings this one back after a crash / accidental
+# close. Recover it with:  grep 'RESUME .*<KEY>' /tmp/jira-agent.log | tail -1
+echo "[$(date)] RESUME $KEY: cd $GIT_BASE/$primary && claude --resume $KEY ${add_args[*]}" >> "$LOG"
 # All agent sessions run inside ONE kitty instance (--single-instance), so each is
 # a window of the same process. That makes cmd-` cycle between them (like browser
 # windows) and Mission Control group them. -T pins the window title to the ticket

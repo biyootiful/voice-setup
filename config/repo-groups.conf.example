@@ -5,6 +5,16 @@
 # the agent only sees those repos (keeps it from wandering into unrelated code).
 # Names are dir names under GIT_BASE (from reply-repos.conf). Missing dirs are
 # skipped automatically.
+#
+# You don't need a group for every combination: the picker's last entry is
+# "Custom… (pick repos)", which lists every git repo under GIT_BASE, takes a
+# multi-selection and asks which one is primary. Add a group here once a
+# combination stops being a one-off.
+#
+# ORDER MATTERS. The FIRST cloned repo in a group is the primary: the agent's
+# cwd, and — because Claude keys sessions by cwd — the only directory
+# `claude --resume` can find that session from later. Put the repo you'd expect
+# to reopen first.
 
 typeset -gA REPO_GROUPS
 REPO_GROUPS[backend]="my-api my-worker"
@@ -13,3 +23,16 @@ REPO_GROUPS[platform]="my-api my-web my-infra"
 
 # Order the groups appear in the picker
 GROUP_ORDER="backend frontend platform"
+
+# Jira project keys per group, for the triage agent (Ctrl+Cmd+K). Two jobs:
+#   1. builds the JQL query for that group's board
+#   2. anchors Jira-key matching in git, so branch names like
+#      backup-develop-2024-03-20 aren't misread as a ticket "DEVELOP-2024"
+# Leave a group out and the agent falls back to a generic key regex (noisier).
+# To see which keys your repos actually use:
+#   git for-each-ref --format='%(refname:short)' refs/remotes/origin \
+#     | grep -oiE '[A-Za-z]+-[0-9]+' | sed 's/-[0-9]*$//' | tr a-z A-Z | sort | uniq -c | sort -rn
+typeset -gA GROUP_JIRA_PROJECTS
+GROUP_JIRA_PROJECTS[backend]="PROJ"
+GROUP_JIRA_PROJECTS[frontend]="PROJ WEB"
+GROUP_JIRA_PROJECTS[platform]="PROJ WEB INFRA"

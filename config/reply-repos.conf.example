@@ -16,3 +16,10 @@ USER_NAME="me"
 # gh account that PR reviews (Ctrl+Cmd+P) post under (must be logged in via
 # `gh auth login`). Leave empty to use whichever account gh has active.
 GH_ACCOUNT=""
+
+# Atlassian site host, for the Jira triage agent (Ctrl+Cmd+K). Just the
+# hostname, no https://. Leave empty and the agent will look it up itself.
+JIRA_SITE="yourcompany.atlassian.net"
+
+# Where Jira triage writes its reports (one markdown file per group per day)
+JIRA_TRIAGE_OUT="$HOME/Documents/jira-triage"

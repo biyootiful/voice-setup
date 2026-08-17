@@ -102,7 +102,10 @@ CONF="$HOME/.config/voice-setup/reply-repos.conf"
 [[ -f "$CONF" ]] || { cp "$HERE/config/reply-repos.conf.example" "$CONF"; warn "Edit $CONF to point at YOUR repos (for Ctrl+Cmd+S)."; }
 
 GROUPS_CONF="$HOME/.config/voice-setup/repo-groups.conf"
-[[ -f "$GROUPS_CONF" ]] || { cp "$HERE/config/repo-groups.conf.example" "$GROUPS_CONF"; warn "Edit $GROUPS_CONF to group YOUR repos (for the Jira agent, Ctrl+Cmd+J)."; }
+[[ -f "$GROUPS_CONF" ]] || { cp "$HERE/config/repo-groups.conf.example" "$GROUPS_CONF"; warn "Edit $GROUPS_CONF to group YOUR repos + set GROUP_JIRA_PROJECTS (Jira agent Ctrl+Cmd+J, triage Ctrl+Cmd+K)."; }
+
+mkdir -p "${JIRA_TRIAGE_OUT:-$HOME/Documents/jira-triage}"
+command -v gh >/dev/null 2>&1 || warn "GitHub CLI ('gh') not found — Jira triage (Ctrl+Cmd+K) still works but won't annotate in-flight tickets with their open PR numbers."
 
 EMAIL_CONF="$HOME/.config/voice-setup/email-triage.conf"
 [[ -f "$EMAIL_CONF" ]] || { cp "$HERE/config/email-triage.conf.example" "$EMAIL_CONF"; warn "Edit $EMAIL_CONF with your domain + noise senders (for email triage, Ctrl+Cmd+M)."; }
@@ -131,6 +134,9 @@ cat <<'DONE'
    Option+Space (hold) = dictate, release to type
    Option+Esc          = stop the voice reading
    Ctrl+Cmd+S          = draft a reply to highlighted text
+   Ctrl+Cmd+J          = Jira ticket -> scoped planning session
+   Ctrl+Cmd+K          = Jira board triage (deployed vs what Jira claims)
+   Ctrl+Cmd+M          = email triage
    Ctrl+Cmd+R / .      = read highlighted text aloud / stop
 ============================================================
 DONE
