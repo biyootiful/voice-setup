@@ -93,6 +93,37 @@ All the hotkeys and toggles live in one file: **`~/.hammerspoon/init.lua`** (ope
   All 54 voices ship inside `voices-v1.0.bin` — nothing extra to download. Prefix is language + gender (`af_`/`am_` American, `bf_`/`bm_` British, then `e`=es, `f`=fr, `h`=hi, `i`=it, `j`=ja, `p`=pt, `z`=zh). Best English options: `af_heart`, `af_bella`, `af_nicole`, `am_michael`, `am_puck`, `bf_emma`, `bf_isabella`, `bm_george`; the rest of the American set is noticeably more synthetic. Non-English voices also need `lang=` changed in `bin/kokoro-tts-server.py`, which hardcodes `en-us`. To audition them all, loop `Kokoro.get_voices()` through `kokoro.create()` using `~/.local/kokoro-venv/bin/python`.
 - **Whisper model** — change the model name in `~/.local/bin/whisper-dictation-server.sh`.
 
+## Resuming an agent session
+
+Closed the window by accident, or lost it to a crash / power cut? Claude keys sessions by **cwd alone**, and both Jira agents `cd` into the group's *primary* repo — the first cloned entry in `REPO_GROUPS[<group>]`, or whatever you picked as primary in the custom picker. `claude --resume` only ever lists sessions started in the directory you run it from, and nothing on screen tells you which directory that was, so:
+
+```sh
+claude-resume.sh ABC-12        # every session mentioning it, and where each lives
+claude-resume.sh ABC-12 --go   # …pick one and reopen it, --add-dir repos restored
+claude-resume.sh               # the 20 most recent, everywhere
+```
+
+```
+  #   WHEN          RESUME FROM                    -c   OPENED WITH
+  1   Aug 12 16:16  my-api                         -    Read Jira ticket ABC-12 (https://…
+  2   Aug 04 11:40  my-api                         -    Read Jira ticket ABC-12 (https://…
+```
+
+It reads the cwd out of the transcripts in `~/.claude/projects/` (`bin/claude-sessions.py` does the scan; `--deep` searches whole transcripts rather than just the opening prompt). The **-c** column answers *resume or continue*: `yes` means that session is the newest in its directory, so `claude -c` there lands on it; `-` means something newer has run in that directory since and only `--resume` will find it.
+
+The equivalent by hand is `cd ~/Documents/git/<primary> && claude --resume <TICKET-KEY> --add-dir ~/Documents/git/<other-repo>`. Two things bite here:
+
+- **Only the primary works.** Run `claude --resume` in a sibling repo of the same group and the session simply isn't in the list.
+- **`--add-dir` is not persisted.** A resumed session has access to the primary repo only. Nothing warns you at startup; it surfaces later as a permission prompt when the agent reaches for a file in a sibling repo, so re-pass the extra repos every time.
+
+`claude-resume.sh --go` handles both: it cds to the right place and rebuilds the `--add-dir` list, preferring the launch log (which records the real command, so hand-picked custom groups come back intact) and falling back to the group whose primary is that directory. If two groups share a primary it says so and takes neither — pass `--group <name>`. The raw log lines are there too:
+
+```sh
+grep RESUME /tmp/jira-agent.log | tail -5      # or /tmp/jira-triage.log
+```
+
+Doing it by hand, `--resume <KEY>` pre-filters the session picker, and the seeded prompt starts with `Read Jira ticket <KEY>`, so the key always matches.
+
 ## Logs / debugging
 
 - whisper server: `/tmp/whisper-server.log`
