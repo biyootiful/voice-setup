@@ -7,7 +7,7 @@ A local, private voice + AI workflow for Apple-Silicon macOS:
 - **Approval alerts** — a chime + banner + spoken alert when Claude is waiting on you, even in another app.
 - **Reply drafter** — highlight any message (Slack, email, ticket, doc) and press **Ctrl+Cmd+S**; Claude Code reads your repos and drops a paste-ready reply on your clipboard.
 - **PR reviewer** — copy one or more GitHub PR links (even a whole Slack message — it extracts every PR link and ignores the rest) and press **Ctrl+Cmd+P**; Claude reviews each diff and leaves a **pending** review (inline comments) you submit. Needs the `gh` CLI logged in.
-- **Resume reviewer** — download the resume PDFs (Slack "Download all" → `~/Downloads`), press **Ctrl+Cmd+H**, pick the PDFs in the file dialog (multi-select), and Claude drops hiring feedback per candidate on your clipboard. PII is sent to Claude — you review before sharing.
+- **Resume screener** — download the resume PDFs (Slack "Download all" → `~/Downloads`), press **Ctrl+Cmd+H**, pick the role, pick the PDFs (multi-select). Each resume is screened *on its own* against that role's rubric, and you get a paste-ready summary on the clipboard plus a full report per candidate. PII is sent to Claude — you review before sharing. [How the bar works ↓](#the-resume-screen-bar)
 - **Text reviser** — highlight any text and press **Ctrl+Cmd+E**; Claude rewrites it into direct, concise Slack-style communication (your voice preserved, no AI tone), paste-ready on the clipboard.
 - **Jira agent** — copy a Jira ticket URL and press **Ctrl+Cmd+J**; pick the product group, and it spins up a new kitty Claude Code session scoped to just that group's repos, reads the ticket (via the Atlassian connector), and hands you a read-only implementation plan you then drive. Needs the Atlassian MCP connected and the `kitty` terminal.
 - **Jira triage** — press **Ctrl+Cmd+K** and pick a board / product group; it cross-checks every open ticket against git and tells you what is *actually* deployed. Buckets each ticket as shipped-to-prod / on-stage / in-flight / no-code-found, flags **drift** where Jira and git disagree (marked Done but not in prod, sitting in "Staging" but already live, shipped but the board never moved), and lists orphan branches with no ticket. Writes a markdown report to `~/Documents/jira-triage/` and prints a summary. Read-only — JQL reads plus `git fetch`, nothing is written to Jira.
@@ -57,7 +57,7 @@ The installer (idempotent — safe to re-run) will:
 | **Option + Esc** | Stop the voice reading |
 | **Ctrl + Cmd + S** | Draft a reply to highlighted text → clipboard |
 | **Ctrl + Cmd + P** | Review the copied GitHub PR link(s) → pending review you submit |
-| **Ctrl + Cmd + H** | Pick resume PDFs → hiring feedback on clipboard |
+| **Ctrl + Cmd + H** | Pick a role + resume PDFs → screen against that rubric |
 | **Ctrl + Cmd + J** | Copied Jira URL → scoped planning session (pick group, or *Custom…*) |
 | **Ctrl + Cmd + K** | Jira board triage → what's deployed vs what Jira claims (pick group, or *Custom…*) |
 | **Ctrl + Cmd + E** | Revise highlighted text → concise Slack style on clipboard |
@@ -130,11 +130,45 @@ Doing it by hand, `--resume <KEY>` pre-filters the session picker, and the seede
 - Kokoro server: `/tmp/kokoro-tts.log`
 - reply drafter: `/tmp/draft-reply.log`
 - PR reviewer: `/tmp/pr-review.log`
-- resume reviewer: `/tmp/resume-review.log`
+- resume screener: `/tmp/resume-review.log`
 - Jira agent: `/tmp/jira-agent.log`
 - Jira triage: `/tmp/jira-triage.log`
 
 Restart a service: `launchctl unload ~/Library/LaunchAgents/com.user.kokoro-tts.plist && launchctl load ~/Library/LaunchAgents/com.user.kokoro-tts.plist`
+
+## The resume screen bar
+
+The screen is only as good as the **role spec**. Specs live in `~/.config/voice-setup/roles/*.md`, one file per role, seeded from `config/roles/` on install; the `# ` heading is what the picker shows, and the whole file is injected into the prompt verbatim. `_TEMPLATE.md` (and anything else starting with `_`) is hidden from the picker.
+
+That file is the bar, so write it like one. The earlier version of this tool asked Claude to assess resumes for "a software engineering role" and handed back a lot of weak ADVANCEs. Five things caused that, and the current design targets each:
+
+- **No bar to measure against.** With no spec, the model grades resume *polish*, which is exactly what the market optimises for. Fix: the role spec, and specifically its **must-haves**, which are a hard gate — any one unmet is a `PASS`, no offsetting against strengths elsewhere. If you wouldn't reject someone for missing it, it isn't a must-have.
+- **Relative grading.** All candidates in one prompt, ending with "rank them", spreads verdicts across the batch, so a weak batch still produces an ADVANCE for whoever is least bad. Fix: one Claude call per resume (`$RESUME_REVIEW_PAR` at a time, default 4). The model never sees the others, and the summary is sorted afterwards in shell. Scores are fit-to-spec, not position in the batch.
+- **Keyword lists read as experience.** Fix: a tool named only in a skills list is a *claim*; evidence is the tool applied to described work with scope or outcome.
+- **Years taken at face value.** Fix: the model computes relevant years from the actual date ranges before forming an impression, discounting adjacent-but-not-the-job experience.
+- **A friendly-summary tone brief.** Fix: explicit calibration, and a decision framed as *does this earn a 30-minute phone screen*, not *should we hire them*.
+
+**What a gate may turn on.** The first cut of this rubric produced 0 advances out of 9, and grepping the reasons showed 7 of the 8 rejections were "no stated data volume" or "no SQL problem described" — resume-writing conventions, not capabilities. That filters for how someone writes a resume, which is a bad predictor and skews against reformatted agency exports and non-US conventions. So the gate turns only on **what a resume reliably reveals**: which job they did, how long, what they owned, whether they operated it. A missing number, latency figure, or war story is a **question**, not a rejection — it produces `BORDERLINE` and an `ASK:` line. Same nine resumes after the change: 1 advance, 5 borderline, 3 pass, and all three passes were "doing a different job" rather than "wrote it differently".
+
+**Every candidate gets an `ASK:`** — the one question a 10-minute call should open with. That is where the screen pays off: a resume screen cannot tell you whether someone is good, only whether they are plausible and what to probe.
+
+Two things the spec deliberately does **not** gate on:
+
+- **Specific tools.** Specs name a stack to describe the shape of the work; the prompt overrides any literal reading of it. An equivalent framework, language, database, orchestrator, or cloud clears the same bar, and the report names the equivalence it credited. A candidate who did the job on another stack is qualified; one who lists your exact stack with no problem attached is not. An older stack is not a weakness in itself.
+- **Anything about the person.** Name, gender, ethnicity, nationality, photo, age or graduation year, family status, disability, visa status, and school or employer prestige are all explicitly excluded, and career breaks are only worth noting where they leave a capability untested.
+
+  Employer prestige is deliberately out, and the specs say so: a recognisable logo is not rigour. What *is* scored is the **environment** — real traffic, uptime pressure, on-call, money-grade data, a system lived with for years, versus short client rotations with no ownership tail. That is the signal a brand name is a noisy proxy for, so it is screened directly instead.
+
+Verdicts are `STRONG_ADVANCE`, `ADVANCE`, `BORDERLINE` (plausible, but something specific is untested — the `ASK:` names it) and `PASS` (a different job, or clearly below level, with a fair internally shareable reason). Reports land in `$RESUME_REVIEW_OUT`, default `~/Documents/resume-reviews/<role>-<timestamp>.md`, lead with the at-a-glance summary, and open automatically (`RESUME_REVIEW_OPEN=0` to stop that). The summary also goes to the clipboard, but the report is the copy that survives a second batch.
+
+Run it from the terminal to iterate on a spec without the pickers:
+
+```
+resume-review.sh --role data-engineer ~/Downloads/*.pdf
+resume-review.sh --dry-run --role fullstack a.pdf     # print the prompt, call nothing
+```
+
+A useful sanity check when tuning: run the same resume against two roles. A data engineer screened against `fullstack` should come back `PASS` with "no application-layer work to screen on", not a mediocre score.
 
 ## Uninstall
 

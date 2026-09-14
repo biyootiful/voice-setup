@@ -176,17 +176,20 @@ local function reviewPR()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "p", reviewPR)
 
--- Ctrl+Cmd+H = review candidate resumes. Pops a multi-select file picker
--- (defaults to ~/Downloads); Claude reads the PDFs and drops hiring feedback
--- on your clipboard. Nothing is sent anywhere — you review and paste.
+-- Ctrl+Cmd+H = screen candidate resumes against a role spec. Asks which role
+-- (from ~/.config/voice-setup/roles/), then pops a multi-select file picker
+-- (defaults to ~/Downloads). Each resume is screened in its own Claude call
+-- against that role's rubric, so candidates are graded against the bar rather
+-- than against each other. Summary lands on the clipboard, full notes in a
+-- report file. Nothing is sent anywhere — you review and paste.
 local function reviewResumes()
-  hs.alert.show("📄  pick the resume PDFs…", 1.5)
+  hs.alert.show("📄  which role, then pick the PDFs…", 1.5)
   local task = hs.task.new(RESUME_REVIEW, function(code, stdout, stderr)
     local out = (stdout or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if out == "CANCELLED" or out == "" then return end
     if code == 0 then
       hs.pasteboard.setContents(out)
-      hs.notify.new({ title = "Resume feedback ready",
+      hs.notify.new({ title = "Resume screen ready",
                       informativeText = "Copied — ⌘V to paste.\n" .. out:sub(1, 160),
                       soundName = "Glass" }):send()
       hs.alert.show("✅  feedback on clipboard — ⌘V to paste", 2.5)
@@ -315,7 +318,7 @@ local COMMANDS = {
   { "⌥ Esc  /  ⌃ ⌘ .",    "Stop reading" },
   { "⌃ ⌘ S",              "Draft a reply to the highlighted message" },
   { "⌃ ⌘ P",              "Review GitHub PR(s) from copied link(s)" },
-  { "⌃ ⌘ H",              "Review resume PDFs (file picker)" },
+  { "⌃ ⌘ H",              "Screen resume PDFs against a role spec" },
   { "⌃ ⌘ J",              "Jira ticket → scoped planning session (copy URL)" },
   { "⌃ ⌘ K",              "Jira board triage — what's deployed vs what Jira claims" },
   { "⌃ ⌘ M",              "Email triage — mark noise read, summarize, draft replies" },

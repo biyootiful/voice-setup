@@ -107,6 +107,14 @@ GROUPS_CONF="$HOME/.config/voice-setup/repo-groups.conf"
 mkdir -p "${JIRA_TRIAGE_OUT:-$HOME/Documents/jira-triage}"
 command -v gh >/dev/null 2>&1 || warn "GitHub CLI ('gh') not found — Jira triage (Ctrl+Cmd+K) still works but won't annotate in-flight tickets with their open PR numbers."
 
+ROLES_DIR="$HOME/.config/voice-setup/roles"
+mkdir -p "$ROLES_DIR" "${RESUME_REVIEW_OUT:-$HOME/Documents/resume-reviews}"
+placed=0
+for r in "$HERE"/config/roles/*.md; do
+  [[ -f "$ROLES_DIR/$(basename "$r")" ]] || { cp "$r" "$ROLES_DIR/"; placed=1; }
+done
+(( placed )) && warn "Edit the role specs in $ROLES_DIR before screening resumes (Ctrl+Cmd+H) — that rubric IS the hiring bar, and a vague one advances everybody."
+
 EMAIL_CONF="$HOME/.config/voice-setup/email-triage.conf"
 [[ -f "$EMAIL_CONF" ]] || { cp "$HERE/config/email-triage.conf.example" "$EMAIL_CONF"; warn "Edit $EMAIL_CONF with your domain + noise senders (for email triage, Ctrl+Cmd+M)."; }
 
@@ -137,6 +145,7 @@ cat <<'DONE'
    Ctrl+Cmd+J          = Jira ticket -> scoped planning session
    Ctrl+Cmd+K          = Jira board triage (deployed vs what Jira claims)
    Ctrl+Cmd+M          = email triage
+   Ctrl+Cmd+H          = screen resume PDFs against a role spec
    Ctrl+Cmd+R / .      = read highlighted text aloud / stop
 ============================================================
 DONE
