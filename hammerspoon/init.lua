@@ -32,6 +32,7 @@ local REVISE_TEXT   = HOME .. "/.local/bin/revise-text.sh"
 local JIRA_AGENT    = HOME .. "/.local/bin/jira-agent.sh"
 local JIRA_TRIAGE   = HOME .. "/.local/bin/jira-triage.sh"
 local EMAIL_AGENT   = HOME .. "/.local/bin/email-agent.sh"
+local ENG_WEEKLY    = HOME .. "/.local/bin/eng-weekly.sh"
 -- --------------------------------
 
 local recording  = false
@@ -256,6 +257,25 @@ local function emailAgent()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "m", emailAgent)
 
+-- Ctrl+Cmd+W = draft the Engineering Weekly email. Opens a kitty Claude session
+-- that reads my last few updates from Sent (for the format), walks the
+-- configured Jira boards for the window since that update, and leaves a Gmail
+-- DRAFT plus a markdown copy. Never sends; nothing is written back to Jira.
+local function engWeekly()
+  hs.alert.show("📮  drafting the weekly update…  (session opening)", 2)
+  hs.task.new(ENG_WEEKLY, function(code, stdout, stderr)
+    local out = (stdout or ""):gsub("%s+$", "")
+    if code == 0 and out:match("^OK") then
+      hs.alert.show("🚀  reading my last updates, then the boards", 2.5)
+    elseif out == "NO_CONFIG" or out == "NO_AREAS" then
+      hs.alert.show("Set ENG_WEEKLY_TO + areas in ~/.config/voice-setup/eng-weekly.conf", 4)
+    else
+      hs.alert.show("Eng weekly failed — see /tmp/eng-weekly.log")
+    end
+  end, {}):start()
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "w", engWeekly)
+
 -- Ctrl+Cmd+E = revise highlighted text into concise Slack style, paste-ready.
 local function reviseSelection()
   hs.eventtap.keyStroke({ "cmd" }, "c")
@@ -322,6 +342,7 @@ local COMMANDS = {
   { "⌃ ⌘ J",              "Jira ticket → scoped planning session (copy URL)" },
   { "⌃ ⌘ K",              "Jira board triage — what's deployed vs what Jira claims" },
   { "⌃ ⌘ M",              "Email triage — mark noise read, summarize, draft replies" },
+  { "⌃ ⌘ W",              "Draft the Engineering Weekly email from the Jira boards" },
 }
 
 local cheatId = nil

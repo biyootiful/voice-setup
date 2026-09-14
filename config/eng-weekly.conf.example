@@ -1,0 +1,46 @@
+# Engineering Weekly drafter (Ctrl+Cmd+W) config. Copy to
+# ~/.config/voice-setup/eng-weekly.conf and edit with YOUR values.
+#
+# The agent reads your last few updates from Sent to learn your format, pulls
+# each board below for the window since that update, and leaves a Gmail DRAFT
+# (never sends). Nothing here is committed — keep real values in the copy.
+
+# Who the update goes to.
+ENG_WEEKLY_TO="eng-weekly@example.com"
+
+# Product areas, in the order they should appear in the email. These are the
+# section names the agent groups tickets under.
+ENG_WEEKLY_AREA_ORDER="platform data web"
+
+# Jira project key(s) behind each area — space-separated, one entry per area.
+# An area with no entry here is skipped.
+typeset -gA ENG_WEEKLY_PROJECTS
+ENG_WEEKLY_PROJECTS[platform]="PROJ"
+ENG_WEEKLY_PROJECTS[data]="DATA PIPE"
+ENG_WEEKLY_PROJECTS[web]="WEB"
+
+# How each area should be NAMED in the email (optional — defaults to the key
+# above). Use the words your readers know, not the repo/project shorthand.
+typeset -gA ENG_WEEKLY_LABELS
+ENG_WEEKLY_LABELS[platform]="Platform"
+ENG_WEEKLY_LABELS[data]="Data Pipeline"
+ENG_WEEKLY_LABELS[web]="Web App"
+
+# Board URL per area (optional). Only context for the agent — it queries by
+# project key, not by board — but useful when an area's board is the thing you
+# actually walk each week.
+typeset -gA ENG_WEEKLY_BOARDS
+ENG_WEEKLY_BOARDS[platform]="https://yourcompany.atlassian.net/jira/software/c/projects/PROJ/boards/1"
+
+# Fallback window (days) when Sent has no previous update to date from.
+ENG_WEEKLY_DAYS=7
+
+# Subject pattern, used only if Sent gives the agent nothing to copy. Optional.
+ENG_WEEKLY_SUBJECT_HINT="Engineering Weekly — <week of Mon DD>"
+
+# One line on what belongs in the update vs what to leave out — the judgment
+# call the boards can't answer. Optional but worth writing.
+ENG_WEEKLY_SCOPE="Cover work my teams shipped or are actively building. Skip chores, dependency bumps, and ticket hygiene."
+
+# Where the agent also saves the drafted update as markdown.
+ENG_WEEKLY_OUT="$HOME/Documents/eng-weekly"

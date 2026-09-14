@@ -11,6 +11,7 @@ A local, private voice + AI workflow for Apple-Silicon macOS:
 - **Text reviser** — highlight any text and press **Ctrl+Cmd+E**; Claude rewrites it into direct, concise Slack-style communication (your voice preserved, no AI tone), paste-ready on the clipboard.
 - **Jira agent** — copy a Jira ticket URL and press **Ctrl+Cmd+J**; pick the product group, and it spins up a new kitty Claude Code session scoped to just that group's repos, reads the ticket (via the Atlassian connector), and hands you a read-only implementation plan you then drive. Needs the Atlassian MCP connected and the `kitty` terminal.
 - **Jira triage** — press **Ctrl+Cmd+K** and pick a board / product group; it cross-checks every open ticket against git and tells you what is *actually* deployed. Buckets each ticket as shipped-to-prod / on-stage / in-flight / no-code-found, flags **drift** where Jira and git disagree (marked Done but not in prod, sitting in "Staging" but already live, shipped but the board never moved), and lists orphan branches with no ticket. Writes a markdown report to `~/Documents/jira-triage/` and prints a summary. Read-only — JQL reads plus `git fetch`, nothing is written to Jira.
+- **Weekly update drafter** — press **Ctrl+Cmd+W**; it reads your last few updates to the engineering list from *Sent* to learn your format and date the reporting window, walks the Jira boards you configured for everything that moved since, rewrites each ticket as one plain-English line, and leaves it as a Gmail **draft** (plus a markdown copy in `~/Documents/eng-weekly/`). Anything it can't verify from the ticket comes back as a `⚠️[confirm: …]` blank rather than an invented outcome. Never sends, and writes nothing to Jira. Needs the Gmail + Atlassian MCPs connected.
 
 Everything runs locally except the reply drafter and the read-aloud, which use your existing **Claude Code subscription** (no extra API cost).
 
@@ -60,6 +61,7 @@ The installer (idempotent — safe to re-run) will:
 | **Ctrl + Cmd + H** | Pick a role + resume PDFs → screen against that rubric |
 | **Ctrl + Cmd + J** | Copied Jira URL → scoped planning session (pick group, or *Custom…*) |
 | **Ctrl + Cmd + K** | Jira board triage → what's deployed vs what Jira claims (pick group, or *Custom…*) |
+| **Ctrl + Cmd + W** | Draft the weekly engineering update from the Jira boards → Gmail draft |
 | **Ctrl + Cmd + E** | Revise highlighted text → concise Slack style on clipboard |
 | **Ctrl + Cmd + R** | Read highlighted text aloud (macOS `say`) |
 | **Ctrl + Cmd + .** | Stop reading |
@@ -88,6 +90,9 @@ All the hotkeys and toggles live in one file: **`~/.hammerspoon/init.lua`** (ope
   It assumes the convention `develop` → dev+stage and `main`/`master` → prod. If your repos deploy off different branches, edit the branch names near the top of `bin/jira-git-facts.sh`.
 
   **Two join signals.** The primary one is the Jira key in the branch name, checked by ancestry (`--merged`) rather than commit messages, which are too inconsistent to trust. But a lot of branches carry no key at all (`dark-mode`, `invoice-flow`) and that work is invisible to key matching — so `--titles` (a `KEY<TAB>title` file) additionally matches ticket *titles* against branch names via `bin/jira-title-match.py`. Title matches are reported in their own section as **candidates, never as deploy verdicts**: precision is roughly 3-4 in 6, so each one prints the words it matched on and you judge it. Many distinctive words is convincing; two generic ones is coincidence.
+- **Weekly update drafter** — `~/.config/voice-setup/eng-weekly.conf` (see `config/eng-weekly.conf.example`): the list address, the product areas in the order they should appear in the email, and the Jira project key(s) behind each. `ENG_WEEKLY_LABELS` is what each area is *called* in the email — use the words the list knows, not the project key. Needs both the Gmail and Atlassian MCPs connected via `/mcp`.
+
+  **Your past emails are the format spec.** Before touching Jira the agent reads your last 3-4 updates out of Sent and copies their subject pattern, section order, and bullet style; where they disagree with the prompt, they win. So the fastest way to change the output is to edit one draft into the shape you want and send it — the next run follows. It also dates the window from that last update rather than assuming 7 days, so a skipped week doesn't leave a gap (`ENG_WEEKLY_DAYS` is only the fallback for the very first run). Run it by hand with `eng-weekly.sh --days 14` for a longer window, or `--dry-run` to print the resolved config and prompt instead of launching.
 - **TTS voice / speed** — env vars on the Kokoro service: `KOKORO_VOICE` (currently `bf_isabella`), `KOKORO_SPEED`, `KOKORO_CHUNK_CHARS`. Set them in the `EnvironmentVariables` dict of `launchagents/com.user.kokoro-tts.plist`, then re-run `./install.sh` (or copy to `~/Library/LaunchAgents/`, substituting `__HOME__`, and `launchctl unload && load`). Editing only the installed copy works until the next install overwrites it.
 
   All 54 voices ship inside `voices-v1.0.bin` — nothing extra to download. Prefix is language + gender (`af_`/`am_` American, `bf_`/`bm_` British, then `e`=es, `f`=fr, `h`=hi, `i`=it, `j`=ja, `p`=pt, `z`=zh). Best English options: `af_heart`, `af_bella`, `af_nicole`, `am_michael`, `am_puck`, `bf_emma`, `bf_isabella`, `bm_george`; the rest of the American set is noticeably more synthetic. Non-English voices also need `lang=` changed in `bin/kokoro-tts-server.py`, which hardcodes `en-us`. To audition them all, loop `Kokoro.get_voices()` through `kokoro.create()` using `~/.local/kokoro-venv/bin/python`.
@@ -133,6 +138,7 @@ Doing it by hand, `--resume <KEY>` pre-filters the session picker, and the seede
 - resume screener: `/tmp/resume-review.log`
 - Jira agent: `/tmp/jira-agent.log`
 - Jira triage: `/tmp/jira-triage.log`
+- weekly update drafter: `/tmp/eng-weekly.log`
 
 Restart a service: `launchctl unload ~/Library/LaunchAgents/com.user.kokoro-tts.plist && launchctl load ~/Library/LaunchAgents/com.user.kokoro-tts.plist`
 

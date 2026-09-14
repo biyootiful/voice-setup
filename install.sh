@@ -118,6 +118,10 @@ done
 EMAIL_CONF="$HOME/.config/voice-setup/email-triage.conf"
 [[ -f "$EMAIL_CONF" ]] || { cp "$HERE/config/email-triage.conf.example" "$EMAIL_CONF"; warn "Edit $EMAIL_CONF with your domain + noise senders (for email triage, Ctrl+Cmd+M)."; }
 
+WEEKLY_CONF="$HOME/.config/voice-setup/eng-weekly.conf"
+[[ -f "$WEEKLY_CONF" ]] || { cp "$HERE/config/eng-weekly.conf.example" "$WEEKLY_CONF"; warn "Edit $WEEKLY_CONF with the list address + your boards (for the weekly update drafter, Ctrl+Cmd+W)."; }
+mkdir -p "${ENG_WEEKLY_OUT:-$HOME/Documents/eng-weekly}"
+
 command -v claude >/dev/null 2>&1 || warn "Claude Code CLI ('claude') not found — install it and run 'claude' once to log in, for the reply drafter + voice hooks."
 
 cat <<'DONE'
@@ -145,6 +149,7 @@ cat <<'DONE'
    Ctrl+Cmd+J          = Jira ticket -> scoped planning session
    Ctrl+Cmd+K          = Jira board triage (deployed vs what Jira claims)
    Ctrl+Cmd+M          = email triage
+   Ctrl+Cmd+W          = draft the Engineering Weekly email from the boards
    Ctrl+Cmd+H          = screen resume PDFs against a role spec
    Ctrl+Cmd+R / .      = read highlighted text aloud / stop
 ============================================================
