@@ -93,33 +93,56 @@ fi
 
 if (( push )); then
   push_block="
-STEP 7 — Push the branch and open a DRAFT PR against develop with \`gh\`. Title:
-\"$KEY: <what changed>\". Body = the PR body from STEP 6."
+STEP 8 — Push the branch and open a DRAFT PR against develop with \`gh\`. Title:
+\"$KEY: <what changed>\". Body = the PR body from STEP 7."
 else
   push_block="
-STEP 7 — Do NOT push and do NOT open the PR. Print the exact commands I would run
+STEP 8 — Do NOT push and do NOT open the PR. Print the exact commands I would run
 to do it myself (git push -u plus the gh pr create), and leave the PR body on disk."
 fi
 
-# --- The ambiguity policy is shared by both modes. It is the thing that stops the
-# --- agent handing back questions I already answered in the ticket.
-AMBIGUITY="=== HOW YOU HANDLE AMBIGUITY ===
-Do NOT hand a list of questions back to me. For anything under-specified, take the
-most conventional reading consistent with the existing code, PROCEED, and record it
-as one line in an ASSUMPTIONS list. I will overrule the ones I disagree with when I
-read your output — that is far cheaper for me than answering questions up front.
+# --- Shared by both modes. Two jobs: stop the agent asking things it could look
+# --- up, and make it batch the questions it genuinely needs instead of firing
+# --- them at me one at a time. Serial interruptions are what make delegating
+# --- slower than just doing the work.
+KNOWLEDGE="$HOME/.config/voice-setup/org-knowledge.md"
+AMBIGUITY="=== HOW YOU HANDLE WHAT YOU DO NOT KNOW ===
 
-STOP and ask me ONLY if one of these is true:
-  • the action is irreversible or outward-facing (push, deploy, migration against a
-    real DB, anything touching prod, anything that costs money, sending mail),
-  • it needs a credential or access you do not have,
-  • two readings of the ticket produce genuinely different products — not merely a
-    different implementation of the same product,
-  • the ticket contradicts what the code actually does, and you cannot tell which is
-    stale.
-Never ask me something the ticket already answers. Never ask me to confirm a
-restatement of what I wrote. If you are 80% sure, that is sure enough — proceed and
-log the assumption."
+Before you ask me anything, try all three of these:
+  1. Read $KNOWLEDGE — where credentials come from, who owns what, past decisions.
+     The answer is often already in there.
+  2. Look in the code, the repo's CLAUDE.md, and the ticket's own comments.
+  3. Search Jira and Confluence (Atlassian tools) and my mail (Gmail tools).
+     Someone has usually answered this before; find it rather than asking me.
+Only when all three come up empty is it a real blocker.
+
+BATCH YOUR BLOCKERS — this is the important part. Do NOT discover them one at a
+time and stop each time. Serial interruptions are the single most expensive thing
+you can do to me: each one costs me a context switch worth more than the code you
+wrote in between.
+
+So: do a recon pass FIRST — read the ticket, the code and the knowledge file before
+writing anything — work out the COMPLETE list of things you genuinely need a human
+for, and print it as one block, early:
+
+  🚧 NEEDS YOU — all of it, up front
+    1. <what you need> — why, and what you will assume if I don't answer
+    2. ...
+
+Then KEEP WORKING on everything not blocked by that list. Do not wait for me. I
+will answer the whole list in one pass while you work.
+
+For anything merely under-specified — ambiguous, not blocked — take the most
+conventional reading consistent with the existing code, PROCEED, and record it in
+ASSUMPTIONS. Never ask me something the ticket already answers. Never ask me to
+confirm a restatement of what I wrote. If you are 80% sure, that is sure enough.
+
+Something is a REAL blocker only if:
+  • it needs a credential or access you could not find via the three steps above,
+  • the action is irreversible or outward-facing (push, deploy, prod, costs money),
+  • two readings produce genuinely different products — not merely different
+    implementations of the same product,
+  • the ticket contradicts the code and you cannot tell which is stale."
 
 if [[ $mode == plan ]]; then
 PROMPT="$(cat <<EOF
@@ -162,29 +185,33 @@ Read each repo's CLAUDE.md first — it names that repo's layout and its check c
 $AMBIGUITY
 
 STEP 1 — Read the ticket with the Atlassian tools (by key $KEY): description AND
-comments. Restate the ask in 2 lines. Then stop talking and start working.
+comments. Read $KNOWLEDGE. Restate the ask in 2 lines.
 
-STEP 2 — Get to a clean start. In each repo you will touch: if the working tree is
+STEP 2 — RECON, before you write anything. Read the code you will need to touch and
+work out the complete blocker list per the rules above. Print the 🚧 NEEDS YOU block
+now, while I can still start resolving it. Then carry on — do not wait.
+
+STEP 3 — Get to a clean start. In each repo you will touch: if the working tree is
 dirty or you are on an unrelated WIP branch, \`git stash push -m "pre-$KEY autostash"\`
 (say so in your summary — never discard anything), then branch from an up-to-date
 develop as feature/$KEY-<short-kebab-description>.
 
-STEP 3 — Write the FAILING TEST FIRST, in that repo's existing test style and
+STEP 4 — Write the FAILING TEST FIRST, in that repo's existing test style and
 location. Run it. Confirm it fails for the right reason. This is the definition of
 done for this ticket — if you cannot express the ticket as a test, say so explicitly
 in your summary and explain what you will use as the gate instead.
 
-STEP 4 — Implement until the test passes. Smallest change that does it. Match the
+STEP 5 — Implement until the test passes. Smallest change that does it. Match the
 surrounding code; do not reformat untouched lines; do not add a dependency if
 something already in the repo covers it.
 
-STEP 5 — Run the full check for each repo you touched and paste the real result:
+STEP 6 — Run the full check for each repo you touched and paste the real result:
 $verify_block$runtime_note
 If it does not pass, keep working. Do not hand me a red branch and ask what to do —
 the one exception is a pre-existing failure you did not cause, which you should
 identify as such and leave alone.
 
-STEP 6 — Commit on the ticket branch. Message: "$KEY: <what changed and why>".
+STEP 7 — Commit on the ticket branch. Message: "$KEY: <what changed and why>".
 No Co-Authored-By, no "Generated with Claude Code". Then write the PR body to
 /tmp/$KEY-pr.md, containing:
   • what changed and why, per repo
@@ -194,12 +221,21 @@ No Co-Authored-By, no "Generated with Claude Code". Then write the PR body to
     touches. Not "run the tests".
 $push_block
 
-STEP 8 — Print a terminal summary in this shape:
+STEP 9 — Capture what you learned, so I never answer it twice. Append to
+$KNOWLEDGE any durable fact this run produced: where a credential actually comes
+from, who owns a system, why something is the way it is, which environment is
+which. Repo-specific conventions go in that repo's CLAUDE.md instead. NEVER write
+a secret value into either file — record where to get it and who owns it. If you
+learned nothing durable, say so and skip it.
+
+STEP 10 — Print a terminal summary in this shape:
   🔨 $KEY — <one line>
   Branch: <branch>  ·  Repos: <list>
   ✅ <repo>: <the actual check output, e.g. "64 tests, 0 failures">
   📝 Assumptions I made (overrule any of these):
     • <one line each>
+  🚧 Still blocked on you: <the unanswered NEEDS YOU items, or "none">
+  📚 Added to org-knowledge.md: <what, or "nothing new">
   ⚠️  Stashed WIP: <repo: stash name, or "none">
   📄 PR body: /tmp/$KEY-pr.md
 Then stop. That is the ONLY stop — do not stop before this point for direction.
