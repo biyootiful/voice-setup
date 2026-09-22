@@ -113,13 +113,24 @@ fi
 KNOWLEDGE="$HOME/.config/voice-setup/org-knowledge.md"
 AMBIGUITY="=== HOW YOU HANDLE WHAT YOU DO NOT KNOW ===
 
-Before you ask me anything, try all three of these:
+Before you ask me anything, try all four of these:
   1. Read $KNOWLEDGE — where credentials come from, who owns what, past decisions.
      The answer is often already in there.
   2. Look in the code, the repo's CLAUDE.md, and the ticket's own comments.
   3. Search Jira and Confluence (Atlassian tools) and my mail (Gmail tools).
      Someone has usually answered this before; find it rather than asking me.
-Only when all three come up empty is it a real blocker.
+  4. CREDENTIALS — never ask me for a token, key or password without doing this
+     first. Run \`agent-secret.sh list\`. If what you need is there and present,
+     read it with \`agent-secret.sh get <name>\` and use it inline —
+     \`KEY=\"\$(agent-secret.sh get <name>)\"\` — NEVER echo it, print it, write it
+     to a file, or paste it into a commit, PR or Jira comment.
+     If it is absent, run:
+       agent-secret.sh need <name> \"<how to get it, in one sentence>\" \"<owner>\"
+     That registers it and prints the command I run to add it. Put it in your
+     NEEDS YOU block and CARRY ON with other work — do not wait.
+     You cannot add secrets yourself, by design. Never ask me to paste a secret
+     into this session.
+Only when all four come up empty is it a real blocker.
 
 BATCH YOUR BLOCKERS — this is the important part. Do NOT discover them one at a
 time and stop each time. Serial interruptions are the single most expensive thing
@@ -230,8 +241,11 @@ STEP 9 — Capture what you learned, so I never answer it twice. Append to
 $KNOWLEDGE any durable fact this run produced: where a credential actually comes
 from, who owns a system, why something is the way it is, which environment is
 which. Repo-specific conventions go in that repo's CLAUDE.md instead. NEVER write
-a secret value into either file — record where to get it and who owns it. If you
-learned nothing durable, say so and skip it.
+a secret value into either file — record where to get it and who owns it.
+If I told you during this run how to obtain ANY credential, you must also run
+\`agent-secret.sh need <name> \"<how to get it>\" \"<owner>\"\` so the next agent
+finds it without asking me. That is not optional — it is the whole point.
+If you learned nothing durable, say so and skip it.
 
 STEP 10 — Print a terminal summary in this shape:
   🔨 $KEY — <one line>
