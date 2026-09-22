@@ -128,6 +128,12 @@ fi
 TITLE="📮 Eng weekly"
 echo "[$(date)] launching eng-weekly (to=$ENG_WEEKLY_TO areas=$ENG_WEEKLY_AREA_ORDER fallback=${days}d)" >> "$LOG"
 # One kitty instance, titled window — cmd-` cycles it with the other agent sessions.
+# Tools this agent may use without prompting — writes the summary file + a Gmail draft; sending stays on ask.
+# Additive and session-scoped; permissions.ask rules (git push, rm, Gmail
+# send) still take precedence, so the dangerous gates stay in place.
+ALLOWED_TOOLS="Read,Grep,Glob,TodoWrite,WebFetch,WebSearch,Write,Edit,Task,Bash(cd:*),Bash(git:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(rg:*),Bash(find:*),Bash(fd:*),Bash(sed:*),Bash(awk:*),Bash(wc:*),Bash(jq:*),Bash(sort:*),Bash(uniq:*),Bash(cut:*),Bash(date:*),Bash(echo:*),Bash(mkdir:*),Bash(python3:*),Bash(gh:*),mcp__claude_ai_Atlassian__getJiraIssue,mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql,mcp__claude_ai_Atlassian__search,mcp__claude_ai_Atlassian__fetch,mcp__claude_ai_Atlassian__getJiraIssueRemoteIssueLinks,mcp__claude_ai_Atlassian__getConfluencePage,mcp__claude_ai_Gmail__search_threads,mcp__claude_ai_Gmail__get_thread,mcp__claude_ai_Gmail__get_message,mcp__claude_ai_Gmail__list_labels,mcp__claude_ai_Gmail__list_drafts,mcp__claude_ai_Gmail__get_draft,mcp__claude_ai_Gmail__create_draft,mcp__claude_ai_Gmail__update_draft,mcp__claude_ai_Gmail__label_thread,mcp__claude_ai_Gmail__unlabel_thread,mcp__claude_ai_Gmail__label_message,mcp__claude_ai_Gmail__unlabel_message,mcp__claude_ai_Gmail__update_message_labels"
+
 "$KITTY" --single-instance --directory "$ENG_WEEKLY_OUT" --title "$TITLE" \
-  "$CLAUDE" "$PROMPT" >>"$LOG" 2>&1 &
+  "$CLAUDE" "$PROMPT" \
+  --allowedTools "$ALLOWED_TOOLS" >>"$LOG" 2>&1 &
 echo "OK"

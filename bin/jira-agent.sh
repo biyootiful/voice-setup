@@ -56,6 +56,12 @@ echo "[$(date)] RESUME $KEY: cd $GIT_BASE/$primary && claude --resume $KEY ${add
 # windows) and Mission Control group them. -T pins the window title to the ticket
 # so you can tell sessions apart — claude's TUI would otherwise overwrite it.
 # NOTE: prompt must come BEFORE --add-dir (it's variadic and would eat the prompt).
+# Tools this agent may use without prompting — read-only planning: no Edit/Write, Jira read tools only.
+# Additive and session-scoped; permissions.ask rules (git push, rm, Gmail
+# send) still take precedence, so the dangerous gates stay in place.
+ALLOWED_TOOLS="Read,Grep,Glob,TodoWrite,WebFetch,WebSearch,Task,Bash(cd:*),Bash(git:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(rg:*),Bash(find:*),Bash(fd:*),Bash(sed:*),Bash(awk:*),Bash(wc:*),Bash(jq:*),Bash(sort:*),Bash(uniq:*),Bash(cut:*),Bash(date:*),Bash(echo:*),Bash(mkdir:*),Bash(python3:*),Bash(gh:*),mcp__claude_ai_Atlassian__getJiraIssue,mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql,mcp__claude_ai_Atlassian__search,mcp__claude_ai_Atlassian__fetch,mcp__claude_ai_Atlassian__getJiraIssueRemoteIssueLinks,mcp__claude_ai_Atlassian__getConfluencePage"
+
 "$KITTY" --single-instance --directory "$GIT_BASE/$primary" --title "$TITLE" \
-  "$CLAUDE" "$PROMPT" "${add_args[@]}" >>"$LOG" 2>&1 &
+  "$CLAUDE" "$PROMPT" "${add_args[@]}" \
+  --allowedTools "$ALLOWED_TOOLS" >>"$LOG" 2>&1 &
 echo "OK $group"
