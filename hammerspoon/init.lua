@@ -31,7 +31,6 @@ local RESUME_REVIEW = HOME .. "/.local/bin/resume-review.sh"
 local REVISE_TEXT   = HOME .. "/.local/bin/revise-text.sh"
 local JIRA_AGENT    = HOME .. "/.local/bin/jira-agent.sh"
 local JIRA_TRIAGE   = HOME .. "/.local/bin/jira-triage.sh"
-local JIRA_BUILD    = HOME .. "/.local/bin/jira-build.sh"
 local EMAIL_AGENT   = HOME .. "/.local/bin/email-agent.sh"
 local ENG_WEEKLY    = HOME .. "/.local/bin/eng-weekly.sh"
 -- --------------------------------
@@ -203,51 +202,35 @@ local function reviewResumes()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "h", reviewResumes)
 
--- Ctrl+Cmd+J = Jira ticket → planning session. Copy the ticket URL, pick the
--- product group; spins up a kitty Claude session scoped to that group's repos,
--- reads the ticket via the Atlassian MCP, and gives a read-only plan.
+-- Ctrl+Cmd+J = Jira ticket → built, verified code. Copy the ticket URL, pick the
+-- product group; spins up a kitty Claude session scoped to those repos that reads
+-- the ticket via the Atlassian MCP, branches off develop, writes the failing test
+-- first, implements until that repo's own check passes, commits, and writes a PR
+-- body. It resolves ordinary ambiguity itself and logs the assumptions instead of
+-- stopping to ask. Does not push.
+--   Hold SHIFT = plan only (read-only scoping, touches nothing).
 local function jiraAgent()
   local clip = hs.pasteboard.getContents()
   if not clip or not clip:match("[A-Z][A-Z0-9]+%-%d+") then
     hs.alert.show("Copy a Jira ticket URL first, then ⌃⌘J"); return
   end
-  hs.alert.show("🎫  pick the product group…", 1.5)
+  local planOnly = hs.eventtap.checkKeyboardModifiers().shift
+  local args = { clip }
+  if planOnly then table.insert(args, "--plan") end
+  hs.alert.show(planOnly and "📋  plan only — pick the repos…"
+                          or "🔨  build — pick the repos…", 1.5)
   hs.task.new(JIRA_AGENT, function(code, stdout, stderr)
     local out = (stdout or ""):gsub("%s+$", "")
     if code == 0 and out:match("^OK") then
-      hs.alert.show("🚀  session opening — agent is reading the ticket", 2.5)
+      hs.alert.show(planOnly and "🚀  session opening — agent is reading the ticket"
+                              or "🚀  building — test first, then green", 2.5)
     elseif out ~= "CANCELLED" then
       hs.alert.show("Jira agent failed — see /tmp/jira-agent.log")
     end
-  end, { clip }):start()
+  end, args):start()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "j", jiraAgent)
 
--- Ctrl+Cmd+B = Jira ticket → BUILT, verified code. Same pickers as ⌃⌘J, but the
--- agent branches off develop, writes the failing test first, implements until the
--- repo's own check passes, commits, and writes a PR body. It resolves ordinary
--- ambiguity itself and logs the assumptions instead of stopping to ask.
--- Hold SHIFT to also push and open the draft PR.
-local function jiraBuild()
-  local clip = hs.pasteboard.getContents()
-  if not clip or not clip:match("[A-Z][A-Z0-9]+%-%d+") then
-    hs.alert.show("Copy a Jira ticket URL first, then ⌃⌘B"); return
-  end
-  local withPush = hs.eventtap.checkKeyboardModifiers().shift
-  local args = { clip }
-  if withPush then table.insert(args, "--push") end
-  hs.alert.show(withPush and "🔨  build + PUSH — pick the repos…"
-                         or  "🔨  build (no push) — pick the repos…", 1.5)
-  hs.task.new(JIRA_BUILD, function(code, stdout, stderr)
-    local out = (stdout or ""):gsub("%s+$", "")
-    if code == 0 and out:match("^OK") then
-      hs.alert.show("🚀  building — test first, then green", 2.5)
-    elseif out ~= "CANCELLED" then
-      hs.alert.show("Jira build failed — see /tmp/jira-build.log")
-    end
-  end, args):start()
-end
-hs.hotkey.bind({ "ctrl", "cmd" }, "b", jiraBuild)
 
 -- Ctrl+Cmd+K = Jira board triage. Pick a product group; opens a kitty Claude
 -- session that cross-checks the board against git (develop = stage, main = prod)
@@ -366,8 +349,7 @@ local COMMANDS = {
   { "⌃ ⌘ S",              "Draft a reply to the highlighted message" },
   { "⌃ ⌘ P",              "Review GitHub PR(s) from copied link(s)" },
   { "⌃ ⌘ H",              "Screen resume PDFs against a role spec" },
-  { "⌃ ⌘ J",              "Jira ticket → scoped planning session (copy URL)" },
-  { "⌃ ⌘ B  (⇧ = push)",   "Jira ticket → built + verified code (copy URL)" },
+  { "⌃ ⌘ J  (⇧ = plan)",   "Jira ticket → built + verified code (copy URL)" },
   { "⌃ ⌘ K",              "Jira board triage — what's deployed vs what Jira claims" },
   { "⌃ ⌘ M",              "Email triage — mark noise read, summarize, draft replies" },
   { "⌃ ⌘ W",              "Draft the Engineering Weekly email from the Jira boards" },
