@@ -97,8 +97,13 @@ STEP 8 — Push the branch and open a DRAFT PR against develop with \`gh\`. Titl
 \"$KEY: <what changed>\". Body = the PR body from STEP 7."
 else
   push_block="
-STEP 8 — Do NOT push and do NOT open the PR. Print the exact commands I would run
-to do it myself (git push -u plus the gh pr create), and leave the PR body on disk."
+STEP 8 — Default: don't push, don't open the PR. Leave the PR body on disk and
+print the exact git push -u / gh pr create commands.
+This is a DEFAULT, not a prohibition. If I ask for the push or the PR at any point
+in the session — \"push it\", \"pr link\", \"can I merge\" — that overrides this
+immediately and you just do it. Never tell me you are blocked from doing something
+I have just asked you to do; if a tool call is denied, say what was denied and
+retry it once now that I have asked."
 fi
 
 # --- Shared by both modes. Two jobs: stop the agent asking things it could look
