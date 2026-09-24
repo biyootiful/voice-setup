@@ -340,6 +340,80 @@ hs.hotkey.bind({ "ctrl", "cmd" }, ".", stopSpeaking)
 --  (One shared list below drives both — edit here to update both.)
 -- ============================================================
 local HOMEDIR = os.getenv("HOME")
+-- ============================================================
+--  Agent window wrangling — ⌃⌘T to tile, ⌃⌘1..9 to jump
+--    Scoped to kitty only, so it leaves every other app alone.
+--    ⌃⌘T  lays the agent sessions out in an even grid on this screen.
+--    ⌃⌘N  focuses the Nth session directly — no cycling past the others,
+--         which is the part that makes ⌘` jarring with 4+ windows open.
+--    Order is stable (title, then window id), so ⌃⌘2 is the same session
+--    every time until you open or close one.
+-- ============================================================
+local TILE_GAP = 8
+
+local function kittyWindows()
+  local app = hs.application.get("kitty")
+  if not app then return {} end
+  local ws = {}
+  for _, w in ipairs(app:allWindows()) do
+    if w:isStandard() and w:isVisible() then ws[#ws + 1] = w end
+  end
+  table.sort(ws, function(a, b)
+    local ta, tb = a:title() or "", b:title() or ""
+    if ta == tb then return (a:id() or 0) < (b:id() or 0) end
+    return ta < tb
+  end)
+  return ws
+end
+
+-- Rows/cols that keep windows as square as possible. 3 becomes 2x2 rather than
+-- three thin columns — the odd one out stretches across the bottom row below.
+local function gridFor(n)
+  if n <= 1 then return 1, 1
+  elseif n == 2 then return 2, 1
+  elseif n <= 4 then return 2, 2
+  elseif n <= 6 then return 3, 2
+  else return 3, 3 end
+end
+
+local function tileKitty()
+  local ws = kittyWindows()
+  local n = #ws
+  if n == 0 then hs.alert.show("no kitty windows open"); return end
+  local f = hs.screen.mainScreen():frame()   -- usable frame: excludes menu bar + dock
+  local cols, rows = gridFor(n)
+  local ch = (f.h - TILE_GAP * (rows + 1)) / rows
+  local i = 1
+  for r = 0, rows - 1 do
+    local inRow = math.min(cols, n - r * cols)   -- last row stretches to fill
+    if inRow <= 0 then break end
+    local cw = (f.w - TILE_GAP * (inRow + 1)) / inRow
+    for c = 0, inRow - 1 do
+      ws[i]:setFrame({
+        x = f.x + TILE_GAP + c * (cw + TILE_GAP),
+        y = f.y + TILE_GAP + r * (ch + TILE_GAP),
+        w = cw, h = ch,
+      }, 0)
+      i = i + 1
+    end
+  end
+  hs.alert.show(("▦  tiled %d session%s"):format(n, n == 1 and "" or "s"), 1)
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "t", tileKitty)
+
+for i = 1, 9 do
+  hs.hotkey.bind({ "ctrl", "cmd" }, tostring(i), function()
+    local ws = kittyWindows()
+    local w = ws[i]
+    if w then
+      w:focus()
+      hs.alert.show(("%d · %s"):format(i, w:title() or "?"), 0.7)
+    else
+      hs.alert.show(("no session %d  (%d open)"):format(i, #ws), 0.8)
+    end
+  end)
+end
+
 local COMMANDS = {
   { "⌥ Space (hold)",     "Dictate — raw, types as you speak" },
   { "⌥ ⇧ Space (hold)",   "Clean dictation — transcribe, auto-revise, type" },
@@ -353,6 +427,8 @@ local COMMANDS = {
   { "⌃ ⌘ K",              "Jira board triage — what's deployed vs what Jira claims" },
   { "⌃ ⌘ M",              "Email triage — mark noise read, summarize, draft replies" },
   { "⌃ ⌘ W",              "Draft the Engineering Weekly email from the Jira boards" },
+  { "⌃ ⌘ T",              "Tile the agent terminals into an even grid" },
+  { "⌃ ⌘ 1-9",            "Jump straight to the Nth agent session" },
 }
 
 local cheatId = nil
