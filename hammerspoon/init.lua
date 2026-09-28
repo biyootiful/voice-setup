@@ -349,7 +349,9 @@ local HOMEDIR = os.getenv("HOME")
 --    Order is stable (title, then window id), so ⌃⌘2 is the same session
 --    every time until you open or close one.
 -- ============================================================
-local TILE_GAP = 8
+-- Gutter between tiled windows, in points. 0 is flush: the grid math below
+-- collapses cleanly to edge-to-edge, so raise this if you ever want air back.
+local TILE_GAP = 0
 
 local function kittyWindows()
   local app = hs.application.get("kitty")
