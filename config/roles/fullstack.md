@@ -1,4 +1,4 @@
-# Fullstack Engineer (Mid to Senior)
+# Fullstack Engineer, backend-leaning (Mid to Senior)
 
 <!-- This file is the hiring bar. The installed copy lives in
      ~/.config/voice-setup/roles/ and is never committed, so internal specifics
@@ -10,6 +10,15 @@ tooling over ad-serving and revenue data, with real traffic behind them. Day to
 day that means a component-based frontend, HTTP/JSON services, Postgres,
 analytical queries against an OLAP layer, Kubernetes, and Prometheus-based
 observability.
+
+**Weighting: we are hiring a strong general software engineer whose centre of
+gravity is the backend.** The title says fullstack and the job does involve UI,
+but backend substance and engineering fundamentals are what we screen on. UI
+work is the most learnable part of this role and is increasingly AI-assisted, so
+thin frontend evidence is a question, not a rejection. A strong systems thinker
+who has shipped some React is a better hire here than a frontend specialist who
+cannot design a schema. Do not reject a strong backend engineer for a resume
+light on frontend detail.
 
 Read that as the SHAPE of the work, not a checklist. React vs Vue vs Svelte vs
 Angular is not a hiring signal — someone who has real depth in any one of them
@@ -23,16 +32,21 @@ Each is a capability. Any stack that demonstrably delivers it counts.
 - 3+ years shipping AND maintaining a web application real users used.
   "Maintaining" is the operative word: someone who has never lived with their
   own code in production has not done this job.
-- Genuine depth in some component-based frontend framework — a state or
-  component-architecture decision they made and can justify. Which framework is
-  irrelevant. "Used React" in a skills list is not depth; a hard problem solved
-  in Vue or Angular is.
-- Real backend work: designed and shipped HTTP APIs, wrote the data access
-  layer, understands relational schema design and query cost. Any language.
-  Frontend-only candidates calling themselves fullstack are a PASS for this
-  role, and that is about scope, not about tooling.
+- Has shipped user-facing UI in some component-based framework in a professional
+  setting, at any depth. This is a LOW bar and deliberately so: a few screens, a
+  dashboard, an internal tool all clear it. Do NOT require a state or
+  component-architecture decision — that is a scoring signal and a phone-screen
+  question, not a gate. Which framework is irrelevant. Only a candidate with no
+  UI work anywhere fails this.
+- Substantial backend work, and this is the one that carries the screen:
+  designed and shipped HTTP APIs, wrote the data access layer, made schema
+  decisions, and understands query cost. Any language. This should be the
+  majority of what the resume describes. Frontend-only candidates calling
+  themselves fullstack are a PASS for this role — that is about scope, not
+  tooling, and it is the one direction the weighting does not bend.
 - Owned at least one feature or service end to end — schema through API through
-  UI through deploy through the bug reports afterwards.
+  deploy through the bug reports afterwards. A UI leg strengthens this but is
+  not required; owning a backend service in production satisfies it.
 - Testing and code review as normal practice. Zero mention of tests anywhere
   across a 5+ year resume is a real concern; "what they test and why" is a
   phone-screen question, not a gate, since almost nobody writes that down.
@@ -74,6 +88,9 @@ Each is a capability. Any stack that demonstrably delivers it counts.
 - "Fullstack" that turns out to mean WordPress, Wix, Shopify theming, or no-code
   tools only.
 - Every bullet is a framework name and no bullet is a problem solved.
+- Backend work that is all framework glue: controllers and CRUD endpoints with
+  no schema decision, no query cost, no failure handling anywhere. This is the
+  gap that matters here, far more than a thin frontend section.
 - A 30-tool skills matrix behind 2 years of experience — breadth claimed at a
   depth the timeline cannot support.
 - Agency history where every project ran 2 to 6 weeks and nothing was maintained.
@@ -87,13 +104,22 @@ problems they solved there is a strong candidate, not a stale one. Judge the
 problems, not the vintage of the tools.
 
 ## Score dimensions
-- End-to-end ownership and production maturity (3)
+- Backend and data-layer substance: API design, schema decisions, query cost,
+  the data model they chose and why (3)
+- Engineering fundamentals: concurrency, caching, failure modes, algorithmic and
+  systems judgement, and the ability to debug something they did not write. This
+  is what "strong SWE" means here and it outranks any framework familiarity (2)
+- End-to-end ownership and production maturity (2)
 - Engineering environment: did they work somewhere with real consequences —
   traffic, uptime pressure, on-call, a product they lived with for years —
   versus short client rotations with no ownership tail (2)
-- Backend and data-layer substance (2)
-- Frontend depth and judgement (2)
-- Engineering quality: tests, review, deployment (1)
+- Frontend competence: enough to be productive on UI, not depth. Score 1 for
+  anyone who has shipped real screens. Reserve a 0 for someone who has never
+  touched UI at all (1)
+
+Fundamentals are rarely written down, so score them from what the work required
+rather than from a claim, and probe them on the call. Never dock a candidate for
+frontend thinness while backend evidence is strong — that inverts this spec.
 
 Score the ENVIRONMENT, never the employer's brand or the candidate's school. A
 recognisable logo is not rigour, and a no-name product company with real traffic
