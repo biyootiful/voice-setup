@@ -1,0 +1,25 @@
+# Ticket autopilot (bin/autopilot.sh) — copy to ~/.config/voice-setup/autopilot.conf.
+# Everything company-specific lives here, not in the scripts.
+
+AP_JIRA_SITE="yourcompany.atlassian.net"
+AP_PROJECT="ABC"                       # Jira project key the autopilot works
+AP_GH_ORG="your-github-org"
+# Repos tickets may touch. Their develop branch is where agent work merges.
+AP_REPOS="web-app api-service"
+# Only tickets carrying one of these labels are in scope.
+AP_SCOPE_LABELS="backend frontend"
+AP_REVIEWERS="alice-gh,bob-gh"         # requested on every PR the autopilot opens
+# Repos whose PRs are never auto-merged (e.g. no develop branch: base is prod).
+AP_NEVER_MERGE="infra-functions"
+# 1 = merge with --admin when develop requires an approving review. Bypasses
+# branch protection; leave 0 unless the repo owner agreed.
+AP_ADMIN_MERGE=0
+AP_MAX_IN_FLIGHT=2                     # build agents running at once
+AP_CI_TIMEOUT_MIN=45
+
+# Plain-language rules the PM agent applies. Multi-line is fine.
+AP_EXCLUDE="Tickets owned by other teams (title prefix \"OPS:\"), epics, and the
+children of epic ABC-1."
+AP_HARD_STOPS="terraform/terragrunt apply, any bootstrap script, writes to
+production data, secret creation or rotation, cloud console/CLI changes, and
+anything needing another team."

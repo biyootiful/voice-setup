@@ -27,13 +27,22 @@ source "$PICKER" || { echo "[$(date)] cannot source $PICKER" >> "$LOG"; echo "NO
 
 mode=build
 push=0
+auto=0          # --auto: unattended run for autopilot.sh (implies --push)
+repos_arg=""    # --repos a,b: skip the picker
+resume_sid=""   # --resume <sid>: continue that session instead of starting fresh
+takeover_pid=""
 args=()
-for a in "$@"; do
-  case "$a" in
-    --plan) mode=plan ;;
-    --push) push=1 ;;
-    *) args+=("$a") ;;
+while (( $# )); do
+  case "$1" in
+    --plan)   mode=plan ;;
+    --push)   push=1 ;;
+    --auto)   auto=1; push=1 ;;
+    --repos)  shift; repos_arg="$1" ;;
+    --resume) shift; resume_sid="$1" ;;
+    --takeover-pid) shift; takeover_pid="$1" ;;   # with --resume: stop this idle window first
+    *) args+=("$1") ;;
   esac
+  shift
 done
 
 url="${args[1]:-$(cat)}"
@@ -44,23 +53,54 @@ echo "[$(date)] ticket $KEY ($url) mode=$mode push=$push" >> "$LOG"
 
 [[ -z "${GROUP_ORDER:-}" ]] && { echo "[$(date)] no GROUP_ORDER (edit repo-groups.conf)" >> "$LOG"; echo "NO_GROUPS"; exit 1; }
 
-# Which repos? Groups from repo-groups.conf, or "Custom…" to pick by hand.
-if [[ $mode == plan ]]; then
-  pick_repo_group "Jira $KEY — plan only: which repos?"
+# Which repos? --repos (the autopilot, unattended), else groups from
+# repo-groups.conf or "Custom…" to pick by hand.
+if [[ -n "$repos_arg" ]]; then
+  PICK_LABEL="autopilot"
+  PICK_REPOS=()
+  for r in ${(s:,:)repos_arg}; do
+    [[ -e "$GIT_BASE/$r/.git" ]] && PICK_REPOS+=("$r") || echo "[$(date)] --repos: no repo $r" >> "$LOG"
+  done
+  (( ${#PICK_REPOS} )) || { echo "NO_REPOS"; exit 1; }
 else
-  pick_repo_group "Jira $KEY — build: which repos?"
+  if [[ $mode == plan ]]; then
+    pick_repo_group "Jira $KEY — plan only: which repos?"
+  else
+    pick_repo_group "Jira $KEY — build: which repos?"
+  fi
+  case $? in
+    0) ;;
+    1) echo "[$(date)] picker cancelled" >> "$LOG"; echo "CANCELLED"; exit 0 ;;
+    *) echo "[$(date)] picker found no usable repos" >> "$LOG"; echo "NO_REPOS"; exit 1 ;;
+  esac
 fi
-case $? in
-  0) ;;
-  1) echo "[$(date)] picker cancelled" >> "$LOG"; echo "CANCELLED"; exit 0 ;;
-  *) echo "[$(date)] picker found no usable repos" >> "$LOG"; echo "NO_REPOS"; exit 1 ;;
-esac
 
 group="$PICK_LABEL"
 existing=("${PICK_REPOS[@]}")
 primary="${existing[1]}"
+
+# Unattended builds run in their own git worktree per ticket, so two agents on the
+# same repo (or my own checkout) never share a working tree. Branch refs are
+# shared, so autopilot-ship.sh pushes from the main checkout as usual.
+ROOT="$GIT_BASE"
+if (( auto )) && [[ -z "$resume_sid" ]]; then
+  ROOT="$GIT_BASE/.autopilot/$KEY"
+  for r in "${existing[@]}"; do
+    wt="$ROOT/$r"
+    [[ -e "$wt/.git" ]] && continue
+    base=develop
+    git -C "$GIT_BASE/$r" fetch -q origin 2>>"$LOG"
+    git -C "$GIT_BASE/$r" rev-parse -q --verify origin/develop >/dev/null \
+      || base="$(git -C "$GIT_BASE/$r" symbolic-ref -q --short refs/remotes/origin/HEAD | sed 's|^origin/||')"
+    mkdir -p "$ROOT"
+    git -C "$GIT_BASE/$r" worktree add -q --detach "$wt" "origin/${base:-main}" >>"$LOG" 2>&1 \
+      || { echo "[$(date)] worktree add failed for $r" >> "$LOG"; echo "WORKTREE_FAILED $r"; exit 1; }
+    echo "[$(date)] worktree $wt at origin/${base:-main}" >> "$LOG"
+  done
+fi
+
 add_args=()
-(( ${#existing[@]} > 1 )) && for r in ${existing[2,-1]}; do add_args+=(--add-dir "$GIT_BASE/$r"); done
+(( ${#existing[@]} > 1 )) && for r in ${existing[2,-1]}; do add_args+=(--add-dir "$ROOT/$r"); done
 REPO_LIST="${existing[*]}"
 
 # --- How each repo proves its own work. This is what lets the build agent finish
@@ -91,7 +131,39 @@ confirm you added no errors or failed calls. Login is Cognito: if it sits on the
 login screen, STOP and ask me to log in once — never script a Cognito login."
 fi
 
-if (( push )); then
+if (( auto )); then
+  # Unattended (autopilot.sh). Nobody is watching this window, and git push /
+  # gh pr merge sit behind permissions.ask, so the agent never pushes: it leaves a
+  # READY marker and autopilot-ship.sh (plain shell, fixed guards) pushes, opens
+  # the PR, waits for CI and merges to develop.
+  source "$HOME/.config/voice-setup/autopilot.conf" 2>/dev/null
+  push_block="
+STEP 8 — UNATTENDED RUN. No human is watching this window.
+  • You are in a fresh per-ticket git worktree (detached at origin/<base>), not my
+    checkout: skip STEP 3's stash and just create the branch here. Install
+    dependencies first if the repo's check needs them (e.g. npm ci).
+  • Do NOT git push, open a PR, or merge — autopilot-ship.sh does that from your marker.
+  • NEEDS YOU items: do not wait for an answer. Post the whole block as ONE Jira
+    comment on $KEY, add the label needs-human, finish everything not blocked, and
+    say so in the marker.
+  • HARD STOPS — do the code, but set \"hard_stop\" in the marker and never run:
+    ${AP_HARD_STOPS:-infra applies, prod data writes, secret changes, or anything needing another team.}
+    A repo with no develop branch targets main, which is prod: always a hard stop.
+  • Before the marker, review your own diff with a fresh subagent (Task): ask it
+    for correctness bugs and for anything that contradicts the ticket. Fix what
+    it finds, re-run the checks, and note what it found.
+  • Then write /tmp/$KEY-ready.json — exactly this shape, valid JSON:
+      {\"key\": \"$KEY\",
+       \"repos\": [{\"repo\": \"<name>\", \"branch\": \"<branch>\", \"base\": \"develop|main\",
+                   \"check\": \"<command you ran>\", \"check_passed\": true}],
+       \"pr_title\": \"$KEY: <what changed>\",
+       \"pr_body\": \"/tmp/$KEY-pr.md\",
+       \"review\": \"<what the review subagent found and what you fixed>\",
+       \"hard_stop\": null | \"<why a human must merge or act>\",
+       \"needs_human\": [\"<open NEEDS YOU items, if any>\"]}
+    Write it only when every touched repo's check passes on a committed tree.
+    If you cannot get there, write no marker and say why in STEP 10."
+elif (( push )); then
   push_block="
 STEP 8 — Push the branch and open a DRAFT PR against develop with \`gh\`. Title:
 \"$KEY: <what changed>\". Body = the PR body from STEP 7."
@@ -194,7 +266,7 @@ mcp__claude_ai_Atlassian__getJiraIssueRemoteIssueLinks,mcp__claude_ai_Atlassian_
 else
 PROMPT="$(cat <<EOF
 You are building Jira ticket $KEY ($url) to completion. Repos in scope: $REPO_LIST.
-Working directory is $GIT_BASE/$primary; the others are added dirs.
+Working directory is $ROOT/$primary; the others are added dirs.
 
 Read each repo's CLAUDE.md first — it names that repo's layout and its check command.
 
@@ -274,6 +346,10 @@ Bash(gh:*),Bash(node:*),mcp__claude-in-chrome,\
 mcp__claude_ai_Atlassian__getJiraIssue,mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql,\
 mcp__claude_ai_Atlassian__search,mcp__claude_ai_Atlassian__fetch,\
 mcp__claude_ai_Atlassian__getJiraIssueRemoteIssueLinks"
+(( auto )) && ALLOWED_TOOLS+=",mcp__claude_ai_Atlassian__addCommentToJiraIssue,\
+mcp__claude_ai_Atlassian__editJiraIssue,mcp__claude_ai_Atlassian__transitionJiraIssue,\
+mcp__claude_ai_Atlassian__getTransitionsForJiraIssue"
+(( auto )) && TITLE="🤖 $KEY · autopilot"
 fi
 
 CLAUDE="$(command -v claude)"
@@ -284,13 +360,48 @@ echo "[$(date)] launching: mode=$mode group=$group primary=$primary repos=$REPO_
 # Sessions are keyed by cwd, and --add-dir is not persisted across a resume, so
 # log the exact command that brings this one back after a crash / accidental
 # close. Recover it with:  grep 'RESUME .*<KEY>' /tmp/jira-agent.log | tail -1
-echo "[$(date)] RESUME $KEY: cd $GIT_BASE/$primary && claude --resume $KEY ${add_args[*]}" >> "$LOG"
+echo "[$(date)] RESUME $KEY: cd $ROOT/$primary && claude --resume $KEY ${add_args[*]}" >> "$LOG"
 # All agent sessions run inside ONE kitty instance (--single-instance), so each is
 # a window of the same process. That makes cmd-` cycle between them (like browser
 # windows) and Mission Control group them. --title pins the window title to the
 # ticket so you can tell sessions apart — claude's TUI would otherwise overwrite it.
 # NOTE: prompt must come BEFORE --add-dir / --allowedTools (both variadic).
-"$KITTY" --single-instance --directory "$GIT_BASE/$primary" --title "$TITLE" \
+if [[ -n "$resume_sid" ]]; then
+  # Pick up an existing session where it left off. Its transcript already holds
+  # the original instructions; this restates the finish line (and, under --auto,
+  # the unattended rules, which an older session never saw).
+  PROMPT="Resuming $KEY where you left off. First re-establish state without
+redoing finished work: git status, current branch, git log against the base, and
+any open PR for $KEY. Then continue from the first unfinished step through to the
+final summary.
+$( (( auto )) && print -r -- "$push_block" )"
+  # Two processes writing one transcript corrupt it, so an open-but-idle window
+  # is stopped before the resume. Only a claude process that is provably this
+  # session (its argv names the sid, or the ticket key in an agent prompt) — never
+  # a session someone started by hand; ticket-state.py already excludes those.
+  if [[ -n "${takeover_pid:-}" ]]; then
+    pcmd="$(ps -o command= -p "$takeover_pid" 2>/dev/null)"
+    if [[ "$pcmd" == *claude* && ( "$pcmd" == *"$resume_sid"* || "$pcmd" == *"Jira ticket $KEY "* ) ]]; then
+      echo "[$(date)] takeover: stopping idle pid $takeover_pid for $KEY" >> "$LOG"
+      kill -TERM "$takeover_pid"
+      for _ in {1..20}; do kill -0 "$takeover_pid" 2>/dev/null || break; sleep 0.5; done
+      kill -0 "$takeover_pid" 2>/dev/null && { echo "TAKEOVER_FAILED $takeover_pid still running"; exit 1; }
+    else
+      echo "[$(date)] takeover refused: pid $takeover_pid is not $KEY/$resume_sid ($pcmd)" >> "$LOG"
+      echo "TAKEOVER_REFUSED"; exit 1
+    fi
+  fi
+  # The resumed session's directory is the one it was started in, not $primary.
+  rcwd="$(python3 "$(dirname "$0")/claude-sessions.py" "$resume_sid" --all | head -1 | cut -f3)"
+  [[ -d "$rcwd" ]] || rcwd="$ROOT/$primary"
+  echo "[$(date)] resuming $KEY session $resume_sid in $rcwd" >> "$LOG"
+  "$KITTY" --single-instance --directory "$rcwd" --title "$TITLE ↻" \
+    "$CLAUDE" --resume "$resume_sid" "$PROMPT" "${add_args[@]}" \
+    --allowedTools "$ALLOWED_TOOLS" >>"$LOG" 2>&1 &
+  echo "OK resumed $resume_sid"
+  exit 0
+fi
+"$KITTY" --single-instance --directory "$ROOT/$primary" --title "$TITLE" \
   "$CLAUDE" "$PROMPT" "${add_args[@]}" \
   --allowedTools "$ALLOWED_TOOLS" >>"$LOG" 2>&1 &
 echo "OK $group"
