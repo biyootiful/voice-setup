@@ -23,3 +23,11 @@ children of epic ABC-1."
 AP_HARD_STOPS="terraform/terragrunt apply, any bootstrap script, writes to
 production data, secret creation or rotation, cloud console/CLI changes, and
 anything needing another team."
+
+# LABEL step: every open ticket gets exactly one of AP_ALL_LABELS. Include the
+# out-of-scope ones so "has no label" always means "new, not yet triaged".
+AP_ALL_LABELS="backend frontend ops umbrella"
+AP_LABEL_RULES="  backend  — code in api-service.
+  frontend — code in web-app.
+  ops      — owned by the ops team (title prefix \"OPS:\").
+  umbrella — epics, QA passes, docs, product decisions: no code to write."

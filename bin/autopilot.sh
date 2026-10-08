@@ -10,14 +10,17 @@
 #
 # One run, in order:
 #   1. SHIP     autopilot-ship.sh pushes / PRs / merges whatever build agents finished.
-#   2. LOOK     for each candidate ticket, report the Claude sessions,
+#   2. LABEL    (full run) every open ticket with none of AP_ALL_LABELS gets exactly
+#               one, from AP_LABEL_RULES; unsure → needs-human. Out-of-scope labels
+#               (other teams, umbrella) are labels too, so "unlabeled" always means new.
+#   3. LOOK     for each candidate ticket, report the Claude sessions,
 #   (ticket-state.py) branches and PRs that already exist — so an open or closed session
 #               is picked up where it left off instead of started over.
-#   3. GROOM    (full run) tickets that are not ready get one Jira comment with
+#   4. GROOM    (full run) tickets that are not ready get one Jira comment with
 #               the questions and the needs-human label; ready ones get agent-ready.
-#   4. DISPATCH up to MAX_IN_FLIGHT agents via jira-agent.sh --auto (new, resume,
+#   5. DISPATCH up to MAX_IN_FLIGHT agents via jira-agent.sh --auto (new, resume,
 #               or take over an idle window), and move merged work to Staging.
-#   5. REPORT   ~/.local/state/autopilot/report-<date>.md
+#   6. REPORT   ~/.local/state/autopilot/report-<date>.md
 #
 # Scope: AP_PROJECT tickets carrying an AP_SCOPE_LABELS label, minus AP_EXCLUDE.
 # Humans review at the release PR (develop→main), not per ticket.
@@ -28,6 +31,7 @@ source "$HOME/.config/voice-setup/reply-repos.conf" 2>/dev/null
 source "$HOME/.config/voice-setup/autopilot.conf" 2>/dev/null \
   || { print -u2 "missing ~/.config/voice-setup/autopilot.conf (see config/autopilot.conf.example)"; exit 1; }
 : "${AP_MAX_IN_FLIGHT:=2}"
+: "${AP_ALL_LABELS:=$AP_SCOPE_LABELS}"
 JIRA_SITE="$AP_JIRA_SITE"
 MAX_IN_FLIGHT="$AP_MAX_IN_FLIGHT"
 BIN="$(cd "$(dirname "$0")" && pwd)"
@@ -51,9 +55,23 @@ if (( dry )); then "$BIN/autopilot-ship.sh" --dry-run; else "$BIN/autopilot-ship
 
 REPORT="$STATE/report-$(date +%F-%H%M).md"
 if (( ${#keys} )); then
+  label="(Skipped this run — explicit keys.)"
   scope="ONLY these tickets: ${keys[*]}. Skip GROOM (they are already groomed) and
 skip discovery — but still run LOOK and DISPATCH for each of them."
 else
+  label="Find open tickets with none of the board's labels:
+  project = $AP_PROJECT AND statusCategory != Done
+  AND (labels is EMPTY OR labels not in (${AP_ALL_LABELS// /, }))
+Use fields [summary, labels, assignee, issuetype, parent, reporter] first; read a
+ticket's description only when the summary is not enough. Give each EXACTLY ONE of:
+  ${AP_ALL_LABELS}
+Rules:
+$AP_LABEL_RULES
+A ticket whose parent epic already has one of these labels takes the parent's.
+If no rule clearly fits, add the best guess plus needs-human and one comment
+asking which it is — never leave a ticket without one of the labels.
+editJiraIssue REPLACES the label list: always send the existing labels plus yours.
+Do this BEFORE discovery, so tickets labeled here are candidates in this run."
   scope="Discover candidates yourself:
   project = $AP_PROJECT AND statusCategory != Done AND labels in (${AP_SCOPE_LABELS// /, })
   AND issuetype != Epic ORDER BY rank ASC
@@ -75,6 +93,8 @@ to keep agent builders busy on ready work so humans only review release PRs.
 $act
 
 Read $KNOWLEDGE first (roles, repos, environments, gotchas).
+
+LABEL. $label
 
 SCOPE. $scope
 Never touch: $AP_EXCLUDE
@@ -118,6 +138,7 @@ REPORT — write $REPORT and print the same thing. Shape:
   ## Dispatched      KEY · new|resume|takeover · repos · why this one
   ## Shipped         KEY · PR links · merged | open (reason)
   ## Left alone      KEY · verdict · reason
+  ## Labeled         KEY · label · one-line reason (· needs-human if unsure)
   ## Groomed         KEY · agent-ready | needs-human (the questions, one line)
   ## Needs Bi        anything only a human can unblock, one line each
 Then stop.
