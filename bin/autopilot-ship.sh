@@ -143,6 +143,15 @@ for m in "${markers[@]}"; do
 
     # --- may this one merge? ------------------------------------------------
     why=""
+    # Parallel builds on one repo each pick "the next" Flyway version, so two can
+    # claim the same V<n>. Refuse to merge a migration whose version develop
+    # already has; the next autopilot run resumes the agent to renumber it.
+    clash=""
+    for f in ${(f)"$(git -C "$dir" diff --name-only --diff-filter=A "origin/$base...$branch" | grep -E '/V[0-9][0-9._]*__[^/]*$')"}; do
+      v="${${f:t}%%__*}"
+      git -C "$dir" ls-tree -r --name-only "origin/$base" | grep -qE "/${v}__" && clash+="${f:t} "
+    done
+    [[ -n "$clash" ]] && why="migration version already on $base: $clash— renumber"
     [[ -n "$hard" ]]                         && why="hard stop: $hard"
     [[ -z "$why" && "$base" != develop ]]    && why="base is $base (prod) — human merges"
     [[ -z "$why" && ${NEVER_MERGE[(Ie)$repo]} -gt 0 ]] && why="$repo is never auto-merged"

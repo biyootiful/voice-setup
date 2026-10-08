@@ -87,7 +87,8 @@ LOOK — for every candidate, run:
   live-working / live-waiting / live-manual → leave alone, just report it
   takeover → an idle agent window: resume it with --takeover-pid <live_pid>
   resume   → resume that closed session
-  pr-open  → read $STATE/<KEY>.json: CI failed → resume the session to fix it;
+  pr-open  → read $STATE/<KEY>.json: CI failed, or a "migration version already
+             on develop" reason → resume the session to fix / renumber it;
              awaiting review or a hard stop → report it, do nothing
   merged   → transition the ticket to Staging (if not already) and comment the PR links
   branch-only / new → candidate for a fresh build

@@ -44,7 +44,9 @@ CONF = os.path.expanduser("~/.config/voice-setup/autopilot.conf")
 LIVE_MIN = 30          # wrote to its transcript this recently => still working
 TAKEOVER_MIN = 120     # an open agent session quieter than this is fair to take over
 AGENT_OPENER = "You are building Jira ticket"   # jira-agent.sh build-mode prompt
-AUTOPILOT_OPENER = "TICKET AUTOPILOT"           # the orchestrator itself — never a match
+# The orchestrator's own runs (any "<WORD> AUTOPILOT" opener, incl. older names)
+# name the keys in their prompt but never build anything — never a match.
+AUTOPILOT_OPENER = re.compile(r"^\w+ AUTOPILOT\b")
 MAX_SCAN_LINES = 400
 
 
@@ -140,7 +142,7 @@ def find_sessions(keys):
             continue
         cwd, sid, prompt = opening(path)
         sid = sid or os.path.basename(path)[:-6]
-        if prompt.startswith(AUTOPILOT_OPENER):
+        if AUTOPILOT_OPENER.match(prompt):
             continue
         branches = branch_commands(body)
         for k, r in res.items():
