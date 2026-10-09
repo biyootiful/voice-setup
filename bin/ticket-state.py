@@ -275,8 +275,11 @@ def verdict(sessions, branches, prs):
         return "merged", "a PR for it is merged", None
     if live:
         return "takeover", f"agent session {live[0]['sid']} idle {live[0]['idle_min']}m (pid {live[0]['live_pid']})", live[0]
-    if sessions:
-        return "resume", f"closed session {sessions[0]['sid']} worked on it", sessions[0]
+    # Only a build session is worth resuming: one the agent launcher opened, or one
+    # that cut a branch for the key. A Q&A session that merely discussed it is not.
+    builds = [s for s in sessions if s["agent_launched"] or s["made_branch"]]
+    if builds:
+        return "resume", f"closed session {builds[0]['sid']} worked on it", builds[0]
     if branches:
         return "branch-only", f"{branches[0]['repo']}:{branches[0]['branch']} exists", None
     return "new", "nothing exists yet", None
