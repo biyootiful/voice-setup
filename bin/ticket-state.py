@@ -31,6 +31,7 @@ mentions the key — e.g. the session that wrote the ticket — is not a match.
 """
 
 import argparse
+import glob
 import json
 import os
 import re
@@ -51,6 +52,7 @@ AUTOPILOT_OPENER = re.compile(r"^\w+ AUTOPILOT\b")
 # which names tickets it only discussed. Only its own branch commands count.
 SUMMARY_OPENER = "This session is being continued from a previous conversation"
 MAX_SCAN_LINES = 400
+DIGITS = re.compile(r"\d+")
 
 
 def key_re(key):
@@ -124,11 +126,36 @@ def branch_commands(body):
 
 def candidate_files(keys):
     """Transcripts that mention any key at all — grep is far faster than parsing every file."""
-    pat = "|".join(re.escape(k) for k in keys)
-    p = subprocess.run(["grep", "-rliE", "--include=*.jsonl", pat, PROJECTS],
-                       capture_output=True, text=True, check=False)
     # Top-level transcripts only; subagent sidechains live in subdirectories.
-    return [f for f in p.stdout.splitlines() if os.path.dirname(os.path.dirname(f)) == PROJECTS]
+    # One pass per file in Python: macOS grep took 17+ minutes over ~300MB with
+    # dozens of patterns (-iE and -F alike). Find each key prefix ("ABC-"),
+    # read the digits after it, and test the number against the wanted set.
+    wanted = {}
+    for k in keys:
+        prefix, _, num = k.upper().rpartition("-")
+        wanted.setdefault(prefix + "-", set()).add(num)
+    out = []
+    for path in glob.glob(os.path.join(PROJECTS, "*", "*.jsonl")):
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        if any(hit(text, pre, nums) for pre, nums in wanted.items()):
+            out.append(path)
+    return out
+
+
+def hit(text, prefix, nums):
+    for pre in (prefix, prefix.lower()):
+        i = text.find(pre)
+        while i != -1:
+            j = i + len(pre)
+            m = DIGITS.match(text, j)
+            if m and m.group() in nums:
+                return True
+            i = text.find(pre, j)
+    return False
 
 
 def find_sessions(keys):
