@@ -47,6 +47,9 @@ AGENT_OPENER = "You are building Jira ticket"   # jira-agent.sh build-mode promp
 # The orchestrator's own runs (any "<WORD> AUTOPILOT" opener, incl. older names)
 # name the keys in their prompt but never build anything — never a match.
 AUTOPILOT_OPENER = re.compile(r"^\w+ AUTOPILOT\b")
+# A session continued after compaction opens with a summary of everything it did,
+# which names tickets it only discussed. Only its own branch commands count.
+SUMMARY_OPENER = "This session is being continued from a previous conversation"
 MAX_SCAN_LINES = 400
 
 
@@ -146,7 +149,7 @@ def find_sessions(keys):
             continue
         branches = branch_commands(body)
         for k, r in res.items():
-            in_prompt = bool(r.search(prompt))
+            in_prompt = bool(r.search(prompt)) and not prompt.startswith(SUMMARY_OPENER)
             made_branch = any(r.search(b) for b in branches)
             if not (in_prompt or made_branch):
                 continue
@@ -176,9 +179,9 @@ def find_sessions(keys):
     return found
 
 
-def find_branches(key, repos, fetch):
-    r = key_re(key)
-    out = []
+def repo_refs(repos, fetch):
+    """Branch names per repo, read once for all keys."""
+    refs = {}
     for repo in repos:
         d = os.path.join(GIT_BASE, repo)
         if not os.path.isdir(os.path.join(d, ".git")):
@@ -186,19 +189,15 @@ def find_branches(key, repos, fetch):
         if fetch:
             subprocess.run(["git", "-C", d, "fetch", "-q", "--prune", "origin"],
                            capture_output=True, check=False)
-        refs = subprocess.run(["git", "-C", d, "for-each-ref", "--format=%(refname:short)",
-                               "refs/heads", "refs/remotes/origin"],
-                              capture_output=True, text=True, check=False).stdout.split()
-        names = sorted({x.removeprefix("origin/") for x in refs if r.search(x)})
-        for n in names:
-            out.append({"repo": repo, "branch": n,
-                        "remote": f"origin/{n}" in refs, "local": n in refs})
-    return out
+        refs[repo] = subprocess.run(["git", "-C", d, "for-each-ref", "--format=%(refname:short)",
+                                     "refs/heads", "refs/remotes/origin"],
+                                    capture_output=True, text=True, check=False).stdout.split()
+    return refs
 
 
-def find_prs(key, repos, org):
-    r = key_re(key)
-    out = []
+def repo_prs(repos, org):
+    """Recent PRs per repo, listed once for all keys."""
+    prs = {}
     for repo in repos:
         # GitHub search misses these (see jira-triage notes); a listing does not.
         p = subprocess.run(["gh", "pr", "list", "-R", f"{org}/{repo}", "--state", "all",
@@ -206,14 +205,26 @@ def find_prs(key, repos, org):
                             "number,state,headRefName,baseRefName,url,title,isDraft"],
                            capture_output=True, text=True, check=False)
         try:
-            rows = json.loads(p.stdout or "[]")
+            prs[repo] = json.loads(p.stdout or "[]")
         except ValueError:
-            rows = []
-        for pr in rows:
-            if r.search(pr["headRefName"]) or r.search(pr["title"]):
-                pr["repo"] = repo
-                out.append(pr)
+            prs[repo] = []
+    return prs
+
+
+def find_branches(key, refs):
+    r = key_re(key)
+    out = []
+    for repo, names in refs.items():
+        for n in sorted({x.removeprefix("origin/") for x in names if r.search(x)}):
+            out.append({"repo": repo, "branch": n,
+                        "remote": f"origin/{n}" in names, "local": n in names})
     return out
+
+
+def find_prs(key, prs):
+    r = key_re(key)
+    return [dict(pr, repo=repo) for repo, rows in prs.items() for pr in rows
+            if r.search(pr["headRefName"]) or r.search(pr["title"])]
 
 
 def verdict(sessions, branches, prs):
@@ -274,9 +285,11 @@ def main():
     if not repos or not a.org:
         sys.exit("ticket-state.py: set AP_REPOS and AP_GH_ORG in autopilot.conf (or pass --repos/--org)")
     sessions = find_sessions(keys)
+    refs = repo_refs(repos, a.fetch)
+    all_prs = repo_prs(repos, a.org)
     for k in keys:
-        br = find_branches(k, repos, a.fetch)
-        prs = find_prs(k, repos, a.org)
+        br = find_branches(k, refs)
+        prs = find_prs(k, all_prs)
         v, why, s = verdict(sessions[k], br, prs)
         print(json.dumps({"key": k, "verdict": v, "reason": why, "resume": s,
                           "sessions": sessions[k], "branches": br, "prs": prs}))
