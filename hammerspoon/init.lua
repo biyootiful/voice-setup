@@ -256,105 +256,125 @@ local function emailAgent()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "m", emailAgent)
 
--- Ctrl+Cmd+F = find a Claude session. A search bar: type (or dictate) the way you'd
--- ask an agent — "the session where we fixed the druid case issue", "ABC460",
--- "the one with Sam Lee". Opens on your most recent sessions; Enter on the
--- "Ask" row runs find-session.py (keyword shortlist → Haiku rerank, ~5-10 s) and
--- shows the best matches with why. Enter on a session reopens it in kitty in the
--- right directory (claude-resume.sh) — or, if it is already open, just says so,
--- since two processes on one transcript corrupt it.
-local FIND_SESSION  = HOME .. "/.local/bin/find-session.py"
+-- Ctrl+Cmd+F = session finder chat. Ask the way you'd ask an agent ("find me the
+-- checkout pixel session", "no, the one where we changed the code"). An agent digs
+-- through the transcripts (session-chat.py) and answers with what happened there;
+-- each session it names gets an Open button, or "open now" if a window already
+-- has it (reopening would put two processes on one transcript). The conversation
+-- persists until you press New chat, so follow-ups keep their context.
+local SESSION_CHAT  = HOME .. "/.local/bin/session-chat.py"
 local RESUME_SCRIPT = HOME .. "/.local/bin/claude-resume.sh"
 local KITTY_BIN     = "/Applications/kitty.app/Contents/MacOS/kitty"
-local PY3           = "/usr/bin/python3"
 
-local sessionChooser = nil
-local recentRows = {}
+local finderView, finderConv, finderTask = nil, "", nil
 
-local function sessionRow(r)
-  local sub = r.when .. "  ·  " .. (r.dir or "")
-  if r.live then sub = sub .. "  ·  open now" end
-  if r.why and r.why ~= "" then sub = sub .. "  ·  " .. r.why end
-  return { text = r.title, subText = sub, sid = r.sid, cwd = r.cwd, live = r.live }
-end
+local FINDER_HTML = [[
+<!doctype html><html><head><meta charset="utf-8"><style>
+:root { color-scheme: dark; }
+body { margin:0; font: 14px -apple-system, system-ui; background:#1e1f22; color:#e6e6e6;
+       display:flex; flex-direction:column; height:100vh; }
+#log { flex:1; overflow-y:auto; padding:14px 16px; }
+.msg { margin:0 0 12px; line-height:1.45; white-space:pre-wrap; }
+.me { color:#9ecbff; }
+.me::before { content:"you  "; color:#6b7280; }
+.bot code { background:#2b2d31; padding:1px 4px; border-radius:4px; }
+.card { background:#2b2d31; border:1px solid #3a3d43; border-radius:8px; padding:8px 10px;
+        margin:6px 0; display:flex; gap:10px; align-items:center; }
+.card .t { flex:1; min-width:0; }
+.card .h { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card .s { color:#9aa0a6; font-size:12px; margin-top:2px; }
+.live { color:#7ee787; font-weight:600; }
+button { background:#3b82f6; color:white; border:0; border-radius:6px; padding:5px 12px;
+         font-size:13px; cursor:pointer; }
+button.ghost { background:transparent; color:#9aa0a6; border:1px solid #3a3d43; }
+#bar { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #34363b; }
+#q { flex:1; background:#2b2d31; color:#e6e6e6; border:1px solid #3a3d43; border-radius:8px;
+     padding:9px 10px; font-size:14px; outline:none; }
+.think { color:#9aa0a6; font-style:italic; }
+</style></head><body>
+<div id="log"><div class="msg bot think">Which session are you after? Ask like you'd ask the agent.</div></div>
+<div id="bar"><input id="q" placeholder="e.g. find me the checkout pixel session" autofocus>
+<button class="ghost" id="new">New chat</button></div>
+<script>
+const log = document.getElementById('log'), q = document.getElementById('q');
+const post = m => webkit.messageHandlers.finder.postMessage(m);
+function esc(s){ return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>'); }
+function add(cls, html){ const d=document.createElement('div'); d.className='msg '+cls; d.innerHTML=html;
+  log.appendChild(d); log.scrollTop=log.scrollHeight; return d; }
+let pending=null;
+function send(){ const t=q.value.trim(); if(!t||pending) return; add('me', esc(t)); q.value='';
+  pending=add('bot think','digging through sessions…'); post({type:'ask', text:t}); }
+q.addEventListener('keydown', e => { if(e.key==='Enter') send(); if(e.key==='Escape') post({type:'close'}); });
+document.getElementById('new').onclick = () => { log.innerHTML=''; add('bot think','New chat. Which session?'); post({type:'new'}); q.focus(); };
+window.addReply = r => {
+  if(pending){ pending.remove(); pending=null; }
+  add('bot', md(r.reply || ''));
+  (Array.isArray(r.sessions) ? r.sessions : []).forEach(s => {
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML = '<div class="t"><div class="h">'+esc(s.title)+'</div><div class="s">'+esc(s.when)+' · '+esc(s.dir)+
+      (s.live?' · <span class="live">open now</span>':'')+(s.why?' · '+esc(s.why):'')+'</div></div>';
+    const b=document.createElement('button'); b.textContent = s.live ? 'Show' : 'Open';
+    b.onclick = () => post({type:'open', sid:s.sid, cwd:s.cwd, live:s.live, title:s.title});
+    c.appendChild(b); log.appendChild(c);
+  });
+  log.scrollTop=log.scrollHeight; q.focus();
+};
+</script></body></html>
+]]
 
-local function askRow(q)
-  return { text = "🔎  Ask: " .. q, subText = "Enter to search every session for this", ask = q }
-end
-
-local function runFinder(args, done)
-  hs.task.new(PY3, function(code, stdout, stderr)
-    local ok, rows = pcall(hs.json.decode, stdout or "")
-    if code ~= 0 or not ok or type(rows) ~= "table" then
-      hs.alert.show("Session search failed — " .. ((stderr or ""):sub(1, 120)), 3); return
-    end
-    done(rows)
-  end, args):start()
-end
-
-local function openSession(c)
-  if c.live then
-    hs.alert.show("That session is already open in a kitty window", 2.5)
+local function openFoundSession(m)
+  if m.live then
+    hs.alert.show("Already open in a kitty window — switching to kitty", 2)
     hs.application.launchOrFocus("kitty"); return
   end
-  hs.task.new(KITTY_BIN, nil, { "--single-instance", "--directory", c.cwd,
-    "--title", "↻ " .. (c.text or ""):sub(1, 40),
-    "/bin/zsh", "-lc", RESUME_SCRIPT .. " " .. c.sid .. " --go" }):start()
+  hs.task.new(KITTY_BIN, nil, { "--single-instance", "--directory", m.cwd,
+    "--title", "↻ " .. (m.title or ""):sub(1, 40),
+    "/bin/zsh", "-lc", RESUME_SCRIPT .. " " .. m.sid .. " --go" }):start()
   hs.alert.show("↻  reopening session", 1.5)
+  if finderView then finderView:hide() end
 end
 
-local function onChoice(c)
-  if not c then return end
-  if c.ask then
-    hs.alert.show("🔎  searching sessions…", 6)
-    runFinder({ FIND_SESSION, "--json", c.ask }, function(rows)
-      hs.alert.closeAll()
-      if #rows == 0 then hs.alert.show("No session matches that", 2.5); return end
-      local choices = {}
-      for _, r in ipairs(rows) do choices[#choices + 1] = sessionRow(r) end
-      choices[#choices + 1] = askRow(c.ask)
-      sessionChooser:choices(choices)
-      sessionChooser:query(nil)
-      sessionChooser:placeholderText("Matches for: " .. c.ask)
-      sessionChooser:show()
-    end)
-  else
-    openSession(c)
+local function onFinderMessage(msg)
+  local m = msg.body
+  if m.type == "close" then finderView:hide()
+  elseif m.type == "new" then finderConv = ""
+  elseif m.type == "open" then openFoundSession(m)
+  elseif m.type == "ask" then
+    local args = { SESSION_CHAT }
+    if finderConv ~= "" then args[#args + 1] = "--conv"; args[#args + 1] = finderConv end
+    args[#args + 1] = m.text
+    finderTask = hs.task.new("/usr/bin/python3", function(code, stdout, stderr)
+      local ok, r = pcall(hs.json.decode, stdout or "")
+      if not ok or type(r) ~= "table" then
+        r = { reply = "Search failed: " .. ((stderr or ""):sub(1, 200)), sessions = {} }
+      end
+      if r.conv and r.conv ~= "" then finderConv = r.conv end
+      if finderView then finderView:evaluateJavaScript("addReply(" .. hs.json.encode(r) .. ")") end
+    end, args)
+    finderTask:start()
   end
 end
 
 local function findSession()
-  if not sessionChooser then
-    sessionChooser = hs.chooser.new(onChoice)
-    sessionChooser:width(55)
-    sessionChooser:rows(9)
-    -- Typing filters the recent list locally; the top row always offers the
-    -- full search. (A query callback turns off the chooser's own filtering.)
-    sessionChooser:queryChangedCallback(function(q)
-      local choices = {}
-      if q and q:match("%S") then
-        choices[1] = askRow(q)
-        local lq = q:lower()
-        for _, r in ipairs(recentRows) do
-          if (r.text .. " " .. r.subText):lower():find(lq, 1, true) then choices[#choices + 1] = r end
-        end
-      else
-        choices = recentRows
-      end
-      sessionChooser:choices(choices)
-    end)
+  if not finderView then
+    local uc = hs.webview.usercontent.new("finder")
+    uc:setCallback(onFinderMessage)
+    local f = hs.screen.mainScreen():frame()
+    local w, h = 720, 560
+    finderView = hs.webview.new({ x = f.x + (f.w - w) / 2, y = f.y + (f.h - h) / 4, w = w, h = h }, {}, uc)
+      :windowStyle({ "titled", "closable", "resizable" })
+      :windowTitle("Find a session")
+      :allowTextEntry(true)
+      :level(hs.drawing.windowLevels.floating)
+      :deleteOnClose(false)
+      :behavior(hs.drawing.windowBehaviors.moveToActiveSpace)
+      :html(FINDER_HTML)
   end
-  sessionChooser:placeholderText("Which session? Ask like you'd ask the agent…")
-  sessionChooser:query(nil)
-  sessionChooser:choices(recentRows)
-  sessionChooser:show()
-  runFinder({ FIND_SESSION, "--json", "--recent" }, function(rows)
-    recentRows = {}
-    for _, r in ipairs(rows) do recentRows[#recentRows + 1] = sessionRow(r) end
-    if sessionChooser:isVisible() and (sessionChooser:query() or "") == "" then
-      sessionChooser:choices(recentRows)
-    end
-  end)
+  finderView:show():bringToFront(true)
+  local win = finderView:hswindow()
+  if win then win:focus() end
+  finderView:evaluateJavaScript("document.getElementById('q').focus()")
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "f", findSession)
 
@@ -424,7 +444,7 @@ local COMMANDS = {
   { "⌃ ⌘ J",              "Jira ticket → scoped planning session (copy URL)" },
   { "⌃ ⌘ K",              "Jira board triage — what's deployed vs what Jira claims" },
   { "⌃ ⌘ M",              "Email triage — mark noise read, summarize, draft replies" },
-  { "⌃ ⌘ F",              "Find a Claude session — ask in plain words, reopen it" },
+  { "⌃ ⌘ F",              "Find a Claude session — chat about it, reopen it" },
 }
 
 local cheatId = nil

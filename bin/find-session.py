@@ -37,7 +37,7 @@ import time
 
 PROJECTS = os.path.expanduser("~/.claude/projects")
 CACHE = os.path.expanduser("~/.cache/voice-setup/session-index.json")
-INDEX_VERSION = 3
+INDEX_VERSION = 4
 BLOB_CAP = 60_000          # chars of searchable text kept per session
 USER_KEEP = 24             # user messages kept for the reranker's card
 SHORTLIST = 20
@@ -100,6 +100,7 @@ def index_one(path):
     users, blob = [], []
     keys, prs, branches = set(), set(), set()
     size = 0
+    headless = False
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             if '"type":"user"' not in line and '"type":"assistant"' not in line:
@@ -110,6 +111,10 @@ def index_one(path):
                 continue
             if o.get("isSidechain"):
                 continue
+            # claude -p runs (text revisions, autopilot passes, this finder) are
+            # one-shot tools, not sessions anyone goes back to.
+            if o.get("entrypoint") == "sdk-cli":
+                headless = True
             cwd = o.get("cwd") or cwd
             sid = o.get("sessionId") or sid
             ts = o.get("timestamp")
@@ -151,6 +156,7 @@ def index_one(path):
         "users": users,
         "keys": sorted(keys), "prs": sorted(prs), "branches": sorted(branches),
         "blob": " ".join(blob).lower(),
+        "headless": headless,
     }
 
 
@@ -196,7 +202,7 @@ def load_index():
             json.dump(idx, fh)
         os.replace(tmp, CACHE)
     return [e for e in files.values()
-            if e["opener"] and not e["opener"].startswith(FINDER_OPENER)]
+            if e["opener"] and not e.get("headless") and not e["opener"].startswith(FINDER_OPENER)]
 
 
 # --------------------------------------------------------------------------- query
@@ -296,12 +302,39 @@ Reply with ONLY a JSON array, no prose: [{"i": <index>, "why": "<under 12 words>
         return None
 
 
-def live_sids():
+def live_sids(entries=None):
+    """Sessions open in a window right now. A resumed one carries its id in argv;
+    a fresh one (kitty → claude "<prompt>") doesn't, so it is the newest session
+    in that process's working directory."""
     try:
-        ps = subprocess.run(["ps", "-axo", "command="], capture_output=True, text=True).stdout
+        ps = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
     except OSError:
         return set()
-    return set(re.findall(r"--resume\s+([0-9a-f-]{36})", ps))
+    live, cwd_pids = set(), []
+    for line in ps.splitlines():
+        pid, _, cmd = line.strip().partition(" ")
+        argv0 = cmd.split(" ", 1)[0]
+        if os.path.basename(argv0) != "claude" or " -p " in f" {cmd} " or "--print" in cmd:
+            continue
+        m = re.search(r"--resume\s+([0-9a-f-]{36})", cmd)
+        if m:
+            live.add(m.group(1))
+        else:
+            cwd_pids.append(pid)
+    if cwd_pids and entries:
+        try:
+            out = subprocess.run(["lsof", "-a", "-d", "cwd", "-Fn", "-p", ",".join(cwd_pids)],
+                                 capture_output=True, text=True).stdout
+        except OSError:
+            out = ""
+        newest = {}
+        for e in entries:
+            if e["mtime"] > newest.get(e["cwd"], (0, ""))[0]:
+                newest[e["cwd"]] = (e["mtime"], e["sid"])
+        for l in out.splitlines():
+            if l.startswith("n") and l[1:] in newest:
+                live.add(newest[l[1:]][1])
+    return live
 
 
 def row(e, why, live):
@@ -332,7 +365,7 @@ def main():
 
     entries = load_index()
     now = time.time()
-    live = live_sids()
+    live = live_sids(entries)
     if a.recent or not query:
         res = [row(e, "", live) for e in sorted(entries, key=lambda e: -e["mtime"])[:max(a.limit, 15)]]
     else:
