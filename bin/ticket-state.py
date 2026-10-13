@@ -48,6 +48,7 @@ AGENT_OPENER = "You are building Jira ticket"   # jira-agent.sh build-mode promp
 # The orchestrator's own runs (any "<WORD> AUTOPILOT" opener, incl. older names)
 # name the keys in their prompt but never build anything — never a match.
 AUTOPILOT_OPENER = re.compile(r"^\w+ AUTOPILOT\b")
+STATE_ROOT = os.path.expanduser("~/.local/state/")
 # A session continued after compaction opens with a summary of everything it did,
 # which names tickets it only discussed. Only its own branch commands count.
 SUMMARY_OPENER = "This session is being continued from a previous conversation"
@@ -172,7 +173,8 @@ def find_sessions(keys):
             continue
         cwd, sid, prompt = opening(path)
         sid = sid or os.path.basename(path)[:-6]
-        if AUTOPILOT_OPENER.match(prompt):
+        # The orchestrator's own runs (any dir under ~/.local/state) name every key.
+        if AUTOPILOT_OPENER.match(prompt) or (cwd or "").startswith(STATE_ROOT):
             continue
         branches = branch_commands(body)
         for k, r in res.items():
@@ -275,9 +277,10 @@ def verdict(sessions, branches, prs):
         return "merged", "a PR for it is merged", None
     if live:
         return "takeover", f"agent session {live[0]['sid']} idle {live[0]['idle_min']}m (pid {live[0]['live_pid']})", live[0]
-    # Only a build session is worth resuming: one the agent launcher opened, or one
-    # that cut a branch for the key. A Q&A session that merely discussed it is not.
-    builds = [s for s in sessions if s["agent_launched"] or s["made_branch"]]
+    # Only a session the agent launcher opened is worth resuming unattended. A
+    # hand session — even one that cut a branch — is a human's conversation; its
+    # branch still shows up below as branch-only, so a fresh build can reuse it.
+    builds = [s for s in sessions if s["agent_launched"]]
     if builds:
         return "resume", f"closed session {builds[0]['sid']} worked on it", builds[0]
     if branches:

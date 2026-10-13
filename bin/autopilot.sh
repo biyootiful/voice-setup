@@ -13,16 +13,19 @@
 #   2. LABEL    (full run) every open ticket with none of AP_ALL_LABELS gets exactly
 #               one, from AP_LABEL_RULES; unsure → needs-human. Out-of-scope labels
 #               (other teams, umbrella) are labels too, so "unlabeled" always means new.
-#   3. LOOK     for each candidate ticket, report the Claude sessions,
+#   3. TIDY     (full run) tickets whose code has fully landed but whose column is
+#               behind: on prod → Done, only on develop → Staging (jira-git-facts.sh).
+#   4. LOOK     for each candidate ticket, report the Claude sessions,
 #   (ticket-state.py) branches and PRs that already exist — so an open or closed session
 #               is picked up where it left off instead of started over.
-#   4. GROOM    (full run) tickets that are not ready get one Jira comment with
+#   5. GROOM    (full run) tickets that are not ready get one Jira comment with
 #               the questions and the needs-human label; ready ones get agent-ready.
-#   5. DISPATCH up to MAX_IN_FLIGHT agents via jira-agent.sh --auto (new, resume,
-#               or take over an idle window), and move merged work to Staging.
-#   6. REPORT   ~/.local/state/autopilot/report-<date>.md
+#   6. DISPATCH up to MAX_IN_FLIGHT agents via jira-agent.sh --auto (new, resume,
+#               take over an idle window, or --review the bot's PR threads).
+#   7. REPORT   ~/.local/state/autopilot/report-<date>.md
 #
-# Scope: AP_PROJECT tickets carrying an AP_SCOPE_LABELS label, minus AP_EXCLUDE.
+# Scope: AP_PROJECT tickets carrying an AP_SCOPE_LABELS label and assigned to
+# AP_ASSIGNEE (if set), minus AP_EXCLUDE. TIDY looks at every scoped ticket.
 # Humans review at the release PR (develop→main), not per ticket.
 
 emulate -L zsh
@@ -32,6 +35,7 @@ source "$HOME/.config/voice-setup/autopilot.conf" 2>/dev/null \
   || { print -u2 "missing ~/.config/voice-setup/autopilot.conf (see config/autopilot.conf.example)"; exit 1; }
 : "${AP_MAX_IN_FLIGHT:=2}"
 : "${AP_ALL_LABELS:=$AP_SCOPE_LABELS}"
+mine=""; [[ -n "${AP_ASSIGNEE:-}" ]] && mine=" AND assignee = \"$AP_ASSIGNEE\""
 JIRA_SITE="$AP_JIRA_SITE"
 MAX_IN_FLIGHT="$AP_MAX_IN_FLIGHT"
 BIN="$(cd "$(dirname "$0")" && pwd)"
@@ -56,6 +60,7 @@ if (( dry )); then "$BIN/autopilot-ship.sh" --dry-run; else "$BIN/autopilot-ship
 REPORT="$STATE/report-$(date +%F-%H%M).md"
 if (( ${#keys} )); then
   label="(Skipped this run — explicit keys.)"
+  tidy="(Skipped this run — explicit keys.)"
   scope="ONLY these tickets: ${keys[*]}. Skip GROOM (they are already groomed) and
 skip discovery — but still run LOOK and DISPATCH for each of them."
 else
@@ -72,9 +77,21 @@ If no rule clearly fits, add the best guess plus needs-human and one comment
 asking which it is — never leave a ticket without one of the labels.
 editJiraIssue REPLACES the label list: always send the existing labels plus yours.
 Do this BEFORE discovery, so tickets labeled here are candidates in this run."
-  scope="Discover candidates yourself:
+  tidy="Move finished tickets to the column their code is actually in. Take every
   project = $AP_PROJECT AND statusCategory != Done AND labels in (${AP_SCOPE_LABELS// /, })
-  AND issuetype != Epic ORDER BY rank ASC
+  AND issuetype != Epic
+(any assignee) and run, once for the whole batch:
+  $BIN/jira-git-facts.sh $AP_PROJECT --repos \"$AP_REPOS\" --keys <KEY> <KEY> ...
+A ticket is FINISHED only when ticket-state.py (LOOK) says merged — every PR for it
+merged, no open PR, no unmerged branch — or the facts say PROD in every repo it
+touched. Then: PROD everywhere → Done; STAGE (develop only) → Staging. Skip it if
+it is already there, if any repo is UNMERGED or SPLIT, or if it is not finished.
+Comment once with the PR links and where the code is. Never move a ticket backwards."
+  scope="Discover candidates yourself — only tickets assigned to the owner of this
+autopilot, and not finished:
+  project = $AP_PROJECT AND statusCategory != Done AND labels in (${AP_SCOPE_LABELS// /, })
+  AND issuetype != Epic$mine ORDER BY rank ASC
+Drop any ticket TIDY found finished. An unassigned ticket is never a candidate.
 Use fields [summary, status, labels, assignee, issuetype, priority] for the list
 (the JQL tool is very verbose — never request description for a whole page)."
 fi
@@ -96,6 +113,8 @@ Read $KNOWLEDGE first (roles, repos, environments, gotchas).
 
 LABEL. $label
 
+TIDY. $tidy
+
 SCOPE. $scope
 Never touch: $AP_EXCLUDE
 Nor anything labeled needs-human unless a human has commented after that label
@@ -109,7 +128,12 @@ LOOK — for every candidate, run:
   resume   → resume that closed session
   pr-open  → read $STATE/<KEY>.json: CI failed, or a "migration version already
              on develop" reason → resume the session to fix / renumber it;
-             awaiting review or a hard stop → report it, do nothing
+             $STATE/<KEY>-review.json exists → the review bot left threads:
+             dispatch a REVIEW run (below). If $STATE/shipped/ already holds 3
+             markers for <KEY> with review_replies, the bot and the agent are
+             going in circles: don't dispatch, report it under Needs Bi;
+             threads only from a human reviewer, awaiting review or a hard stop
+             → report it, do nothing
   merged   → transition the ticket to Staging (if not already) and comment the PR links
   branch-only / new → candidate for a fresh build
 
@@ -129,6 +153,10 @@ taking agent-ready tickets in rank order. For each, decide the repos from the ti
   new / branch-only:  $BIN/jira-agent.sh --auto --repos <r1,r2> https://$JIRA_SITE/browse/<KEY>
   resume:             $BIN/jira-agent.sh --auto --repos <r1,r2> --resume <sid> https://$JIRA_SITE/browse/<KEY>
   takeover:           $BIN/jira-agent.sh --auto --repos <r1,r2> --resume <sid> --takeover-pid <pid> https://$JIRA_SITE/browse/<KEY>
+  review:             $BIN/jira-agent.sh --auto --repos <r1,r2> --review $STATE/<KEY>-review.json [--resume <sid>] https://$JIRA_SITE/browse/<KEY>
+                      (add --resume only when LOOK names a closed agent session for it;
+                       the review agent probes each thread for false positives
+                       before fixing — the bot sees only the diff)
 The first repo is the primary (where most of the change lands). After a fresh or
 resumed dispatch, transition the ticket to In Progress if it is not already.
 A launch prints "OK ..." — anything else is a failure: report it, don't retry.
@@ -137,6 +165,7 @@ REPORT — write $REPORT and print the same thing. Shape:
   # $AP_PROJECT autopilot — <date time>
   ## Dispatched      KEY · new|resume|takeover · repos · why this one
   ## Shipped         KEY · PR links · merged | open (reason)
+  ## Tidied          KEY · from → to · where the code is
   ## Left alone      KEY · verdict · reason
   ## Labeled         KEY · label · one-line reason (· needs-human if unsure)
   ## Groomed         KEY · agent-ready | needs-human (the questions, one line)
@@ -146,7 +175,7 @@ EOF
 )"
 
 ALLOWED="Read,Grep,Glob,\
-Bash(python3 $BIN/ticket-state.py:*),Bash($BIN/jira-agent.sh:*),\
+Bash(python3 $BIN/ticket-state.py:*),Bash($BIN/jira-agent.sh:*),Bash($BIN/jira-git-facts.sh:*),\
 Bash(cat:*),Bash(jq:*),Bash(ls:*),Bash(date:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr checks:*),\
 Edit(/$STATE/**),\
 mcp__claude_ai_Atlassian__getJiraIssue,mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql,\

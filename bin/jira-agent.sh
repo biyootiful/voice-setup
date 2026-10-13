@@ -31,6 +31,7 @@ auto=0          # --auto: unattended run for autopilot.sh (implies --push)
 repos_arg=""    # --repos a,b: skip the picker
 resume_sid=""   # --resume <sid>: continue that session instead of starting fresh
 takeover_pid=""
+review_file=""  # --review <file>: (with --auto) resolve code-review threads on the open PR
 args=()
 while (( $# )); do
   case "$1" in
@@ -40,6 +41,7 @@ while (( $# )); do
     --repos)  shift; repos_arg="$1" ;;
     --resume) shift; resume_sid="$1" ;;
     --takeover-pid) shift; takeover_pid="$1" ;;   # with --resume: stop this idle window first
+    --review) shift; review_file="$1" ;;
     *) args+=("$1") ;;
   esac
   shift
@@ -352,6 +354,73 @@ mcp__claude_ai_Atlassian__getTransitionsForJiraIssue"
 (( auto )) && TITLE="🤖 $KEY · autopilot"
 fi
 
+# --review: the PR is open and an automated reviewer left threads. That reviewer
+# sees only the diff (no ticket, no surrounding code), so each comment is a claim
+# to test, not an instruction. The agent decides per thread; autopilot-ship.sh
+# posts the replies and resolves, so nothing outward-facing happens from here.
+if [[ -n "$review_file" ]]; then
+  (( auto )) || { echo "[$(date)] --review needs --auto" >> "$LOG"; echo "REVIEW_NEEDS_AUTO"; exit 1; }
+  [[ -r "$review_file" ]] || { echo "[$(date)] no review file $review_file" >> "$LOG"; echo "NO_REVIEW_FILE"; exit 1; }
+  PROMPT="$(cat <<REVIEW
+You are resolving automated code-review comments on the open PR(s) for Jira
+ticket $KEY ($url). Repos in scope: $REPO_LIST. Worktrees are under $ROOT.
+
+The unresolved threads are in $review_file: per repo the PR number, branch, and
+each thread's id, path, line, url and comments.
+
+The reviewer is a bot that sees only the diff: no ticket, no product context,
+often not the code around the change. Treat every comment as a HYPOTHESIS to
+test, not an instruction, and expect false positives. Its severity markers are
+its guess, not a fact.
+
+STEP 1 — Context before judging. Read the ticket (description and comments) with
+the Atlassian tools, $HOME/.config/voice-setup/org-knowledge.md, each repo's
+CLAUDE.md, the PR description (gh pr view), and the whole diff
+(git diff origin/<base>...<branch>).
+
+STEP 2 — Get onto the branch in each worktree: git switch <branch> if you are not
+on it, then git pull --ff-only origin <branch>.
+
+STEP 3 — Probe each thread before touching code:
+  • Read what it points at AND what that depends on: callers, transaction /
+    async / thread boundaries, config, existing tests, how the repo does the
+    same thing elsewhere.
+  • Write the claim in one line, and what would have to be true for it to be a
+    real bug.
+  • Try to prove it: a test that fails if the claim is right, or the exact path
+    traced with file:line. A claim you cannot demonstrate is not established.
+  • Check whether the ticket or existing code made it a deliberate choice.
+  • Verdict:
+      fixed          real. Minimal fix, with a test that fails before and passes after.
+      false_positive wrong for this codebase. The reply must carry the evidence:
+                     file:line of the guarding code, the passing test, the ticket
+                     line. "Looks fine" is not evidence.
+      needs_human    real but a product/scope call, or you genuinely cannot tell.
+  Never change code just to make a comment go away: a plausible fix for a
+  non-bug is a regression.
+
+STEP 4 — Run the full check for each repo you touched and read the result:
+$verify_block
+Commit on the same branch: "$KEY: address review — <what>". No Co-Authored-By.
+
+STEP 5 — Write /tmp/$KEY-ready.json as the unattended rules below describe, PLUS
+  "review_replies": [{"repo": "<repo>", "thread_id": "<id from the file>",
+                      "verdict": "fixed|false_positive|needs_human",
+                      "reply": "<1-4 sentences for the thread: fixed → what changed
+                                 and the commit sha; false_positive → the evidence>"}]
+with one entry per thread in the file. autopilot-ship.sh posts each reply and
+resolves the fixed / false_positive threads after it pushes; needs_human threads
+stay open (list them in needs_human too). Do NOT reply, resolve or push yourself.
+Write the marker even if every thread is a false positive and you committed nothing.
+pr_body: keep /tmp/$KEY-pr.md (recreate it from gh pr view --json body if missing).
+$push_block
+
+Then print one line per thread (verdict · why) and stop.
+REVIEW
+)"
+  TITLE="🔍 $KEY · review"
+fi
+
 CLAUDE="$(command -v claude)"
 KITTY="/Applications/kitty.app/Contents/MacOS/kitty"; [[ -x "$KITTY" ]] || KITTY="$(command -v kitty)"
 [[ -z "$CLAUDE" || -z "$KITTY" ]] && { echo "[$(date)] missing claude or kitty" >> "$LOG"; echo "MISSING_TOOL"; exit 1; }
@@ -370,7 +439,7 @@ if [[ -n "$resume_sid" ]]; then
   # Pick up an existing session where it left off. Its transcript already holds
   # the original instructions; this restates the finish line (and, under --auto,
   # the unattended rules, which an older session never saw).
-  PROMPT="Resuming $KEY where you left off. First re-establish state without
+  [[ -n "$review_file" ]] || PROMPT="Resuming $KEY where you left off. First re-establish state without
 redoing finished work: git status, current branch, git log against the base, and
 any open PR for $KEY. Then continue from the first unfinished step through to the
 final summary.

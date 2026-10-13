@@ -9,6 +9,11 @@ AP_REPOS="web-app api-service"
 # Only tickets carrying one of these labels are in scope.
 AP_SCOPE_LABELS="backend frontend"
 AP_REVIEWERS="alice-gh,bob-gh"         # requested on every PR the autopilot opens
+# Only build tickets assigned to this Jira accountId (empty = any assignee).
+AP_ASSIGNEE=""
+# GitHub logins of automated PR reviewers whose threads an agent may probe,
+# answer and resolve. A human reviewer's thread is never auto-resolved.
+AP_REVIEW_BOTS="claude"
 # Repos whose PRs are never auto-merged (e.g. no develop branch: base is prod).
 AP_NEVER_MERGE="infra-functions"
 # 1 = merge with --admin when develop requires an approving review. Bypasses
