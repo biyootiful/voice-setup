@@ -11,6 +11,7 @@ A local, private voice + AI workflow for Apple-Silicon macOS:
 - **Text reviser** — highlight any text and press **Ctrl+Cmd+E**; Claude rewrites it into direct, concise Slack-style communication (your voice preserved, no AI tone), paste-ready on the clipboard.
 - **Jira agent** — copy a Jira ticket URL and press **Ctrl+Cmd+J**; pick the product group, and it spins up a new kitty Claude Code session scoped to just that group's repos, reads the ticket (via the Atlassian connector), and hands you a read-only implementation plan you then drive. Needs the Atlassian MCP connected and the `kitty` terminal.
 - **Jira triage** — press **Ctrl+Cmd+K** and pick a board / product group; it cross-checks every open ticket against git and tells you what is *actually* deployed. Buckets each ticket as shipped-to-prod / on-stage / in-flight / no-code-found, flags **drift** where Jira and git disagree (marked Done but not in prod, sitting in "Staging" but already live, shipped but the board never moved), and lists orphan branches with no ticket. Writes a markdown report to `~/Documents/jira-triage/` and prints a summary. Read-only — JQL reads plus `git fetch`, nothing is written to Jira.
+- **Session finder** — press **Ctrl+Cmd+F** and describe the session the way you would ask an agent ("the one where we fixed the druid case issue", "ABC460", "the session with Sam Lee"). It opens on your recent sessions; Enter on **Ask** searches every transcript (keyword shortlist, then Haiku picks the matches and says why). Enter on a result reopens it in kitty in the right directory, or tells you it is already open. CLI: `find-session.py "<words>"`.
 
 Everything runs locally except the reply drafter and the read-aloud, which use your existing **Claude Code subscription** (no extra API cost).
 
@@ -57,6 +58,7 @@ The installer (idempotent — safe to re-run) will:
 | **Option + Esc** | Stop the voice reading |
 | **Ctrl + Cmd + S** | Draft a reply to highlighted text → clipboard |
 | **Ctrl + Cmd + P** | Review the copied GitHub PR link(s) → pending review you submit |
+| **Ctrl + Cmd + F** | Find a Claude session in plain words → reopen it |
 | **Ctrl + Cmd + H** | Pick a role + resume PDFs → screen against that rubric |
 | **Ctrl + Cmd + J** | Copied Jira URL → scoped planning session (pick group, or *Custom…*) |
 | **Ctrl + Cmd + K** | Jira board triage → what's deployed vs what Jira claims (pick group, or *Custom…*) |

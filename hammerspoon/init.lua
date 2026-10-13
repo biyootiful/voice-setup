@@ -256,6 +256,108 @@ local function emailAgent()
 end
 hs.hotkey.bind({ "ctrl", "cmd" }, "m", emailAgent)
 
+-- Ctrl+Cmd+F = find a Claude session. A search bar: type (or dictate) the way you'd
+-- ask an agent — "the session where we fixed the druid case issue", "ABC460",
+-- "the one with Sam Lee". Opens on your most recent sessions; Enter on the
+-- "Ask" row runs find-session.py (keyword shortlist → Haiku rerank, ~5-10 s) and
+-- shows the best matches with why. Enter on a session reopens it in kitty in the
+-- right directory (claude-resume.sh) — or, if it is already open, just says so,
+-- since two processes on one transcript corrupt it.
+local FIND_SESSION  = HOME .. "/.local/bin/find-session.py"
+local RESUME_SCRIPT = HOME .. "/.local/bin/claude-resume.sh"
+local KITTY_BIN     = "/Applications/kitty.app/Contents/MacOS/kitty"
+local PY3           = "/usr/bin/python3"
+
+local sessionChooser = nil
+local recentRows = {}
+
+local function sessionRow(r)
+  local sub = r.when .. "  ·  " .. (r.dir or "")
+  if r.live then sub = sub .. "  ·  open now" end
+  if r.why and r.why ~= "" then sub = sub .. "  ·  " .. r.why end
+  return { text = r.title, subText = sub, sid = r.sid, cwd = r.cwd, live = r.live }
+end
+
+local function askRow(q)
+  return { text = "🔎  Ask: " .. q, subText = "Enter to search every session for this", ask = q }
+end
+
+local function runFinder(args, done)
+  hs.task.new(PY3, function(code, stdout, stderr)
+    local ok, rows = pcall(hs.json.decode, stdout or "")
+    if code ~= 0 or not ok or type(rows) ~= "table" then
+      hs.alert.show("Session search failed — " .. ((stderr or ""):sub(1, 120)), 3); return
+    end
+    done(rows)
+  end, args):start()
+end
+
+local function openSession(c)
+  if c.live then
+    hs.alert.show("That session is already open in a kitty window", 2.5)
+    hs.application.launchOrFocus("kitty"); return
+  end
+  hs.task.new(KITTY_BIN, nil, { "--single-instance", "--directory", c.cwd,
+    "--title", "↻ " .. (c.text or ""):sub(1, 40),
+    "/bin/zsh", "-lc", RESUME_SCRIPT .. " " .. c.sid .. " --go" }):start()
+  hs.alert.show("↻  reopening session", 1.5)
+end
+
+local function onChoice(c)
+  if not c then return end
+  if c.ask then
+    hs.alert.show("🔎  searching sessions…", 6)
+    runFinder({ FIND_SESSION, "--json", c.ask }, function(rows)
+      hs.alert.closeAll()
+      if #rows == 0 then hs.alert.show("No session matches that", 2.5); return end
+      local choices = {}
+      for _, r in ipairs(rows) do choices[#choices + 1] = sessionRow(r) end
+      choices[#choices + 1] = askRow(c.ask)
+      sessionChooser:choices(choices)
+      sessionChooser:query(nil)
+      sessionChooser:placeholderText("Matches for: " .. c.ask)
+      sessionChooser:show()
+    end)
+  else
+    openSession(c)
+  end
+end
+
+local function findSession()
+  if not sessionChooser then
+    sessionChooser = hs.chooser.new(onChoice)
+    sessionChooser:width(55)
+    sessionChooser:rows(9)
+    -- Typing filters the recent list locally; the top row always offers the
+    -- full search. (A query callback turns off the chooser's own filtering.)
+    sessionChooser:queryChangedCallback(function(q)
+      local choices = {}
+      if q and q:match("%S") then
+        choices[1] = askRow(q)
+        local lq = q:lower()
+        for _, r in ipairs(recentRows) do
+          if (r.text .. " " .. r.subText):lower():find(lq, 1, true) then choices[#choices + 1] = r end
+        end
+      else
+        choices = recentRows
+      end
+      sessionChooser:choices(choices)
+    end)
+  end
+  sessionChooser:placeholderText("Which session? Ask like you'd ask the agent…")
+  sessionChooser:query(nil)
+  sessionChooser:choices(recentRows)
+  sessionChooser:show()
+  runFinder({ FIND_SESSION, "--json", "--recent" }, function(rows)
+    recentRows = {}
+    for _, r in ipairs(rows) do recentRows[#recentRows + 1] = sessionRow(r) end
+    if sessionChooser:isVisible() and (sessionChooser:query() or "") == "" then
+      sessionChooser:choices(recentRows)
+    end
+  end)
+end
+hs.hotkey.bind({ "ctrl", "cmd" }, "f", findSession)
+
 -- Ctrl+Cmd+E = revise highlighted text into concise Slack style, paste-ready.
 local function reviseSelection()
   hs.eventtap.keyStroke({ "cmd" }, "c")
@@ -322,6 +424,7 @@ local COMMANDS = {
   { "⌃ ⌘ J",              "Jira ticket → scoped planning session (copy URL)" },
   { "⌃ ⌘ K",              "Jira board triage — what's deployed vs what Jira claims" },
   { "⌃ ⌘ M",              "Email triage — mark noise read, summarize, draft replies" },
+  { "⌃ ⌘ F",              "Find a Claude session — ask in plain words, reopen it" },
 }
 
 local cheatId = nil
