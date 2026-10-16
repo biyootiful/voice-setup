@@ -12,6 +12,9 @@
     <dict>
         <!-- Voice / speed / chunking. See README; `bin/kokoro-tts-server.py` reads
              these at startup, so edit here and reload the agent to change them. -->
+        <!-- soprano (default, MLX) or kokoro (ONNX, uses KOKORO_VOICE) -->
+        <key>TTS_ENGINE</key>
+        <string>soprano</string>
         <key>KOKORO_VOICE</key>
         <string>bf_isabella</string>
     </dict>

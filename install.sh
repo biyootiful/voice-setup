@@ -65,6 +65,16 @@ base="https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-
 [[ -f "$KOKORO_DIR/kokoro-v1.0.onnx" ]] || { say "Downloading Kokoro model (~310MB)"; curl -sL -o "$KOKORO_DIR/kokoro-v1.0.onnx" "$base/kokoro-v1.0.onnx"; }
 [[ -f "$KOKORO_DIR/voices-v1.0.bin"  ]] || { say "Downloading Kokoro voices (~27MB)";  curl -sL -o "$KOKORO_DIR/voices-v1.0.bin"  "$base/voices-v1.0.bin"; }
 
+# Soprano (the default voice) runs on MLX via mlx-audio, in its own venv; the
+# model (~160MB) downloads from Hugging Face on the server's first start.
+MLX_VENV="$HOME/.local/mlx-audio-venv"
+if [[ ! -x "$MLX_VENV/bin/python" ]]; then
+  say "Creating mlx-audio venv for the Soprano voice"
+  "$PY312" -m venv "$MLX_VENV"
+  "$MLX_VENV/bin/pip" install --quiet --upgrade pip
+  "$MLX_VENV/bin/pip" install --quiet mlx-audio soundfile
+fi
+
 # ---- 4. Scripts ------------------------------------------------------------
 say "Installing scripts to $BIN"
 cp "$HERE"/bin/*.sh "$HERE"/bin/*.py "$BIN/"
