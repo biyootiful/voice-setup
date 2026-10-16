@@ -104,6 +104,9 @@ CONF="$HOME/.config/voice-setup/reply-repos.conf"
 GROUPS_CONF="$HOME/.config/voice-setup/repo-groups.conf"
 [[ -f "$GROUPS_CONF" ]] || { cp "$HERE/config/repo-groups.conf.example" "$GROUPS_CONF"; warn "Edit $GROUPS_CONF to group YOUR repos + set GROUP_JIRA_PROJECTS (Jira agent Ctrl+Cmd+J, triage Ctrl+Cmd+K)."; }
 
+VERIFY_CONF="$HOME/.config/voice-setup/verify.conf"
+[[ -f "$VERIFY_CONF" ]] || { cp "$HERE/config/verify.conf.example" "$VERIFY_CONF"; warn "Edit $VERIFY_CONF with each repo's test/lint command (how the Jira build agent, Ctrl+Cmd+J, proves its work)."; }
+
 mkdir -p "${JIRA_TRIAGE_OUT:-$HOME/Documents/jira-triage}"
 command -v gh >/dev/null 2>&1 || warn "GitHub CLI ('gh') not found — Jira triage (Ctrl+Cmd+K) still works but won't annotate in-flight tickets with their open PR numbers."
 

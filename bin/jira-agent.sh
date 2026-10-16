@@ -106,32 +106,19 @@ add_args=()
 REPO_LIST="${existing[*]}"
 
 # --- How each repo proves its own work. This is what lets the build agent finish
-# --- without you: a command it can run and read the exit code of.
-typeset -A VERIFY
-VERIFY[assistant-ui]='npm test && npm run typecheck && npm run lint'
-VERIFY[platform-api]='./mvnw test'
-VERIFY[platform-web]='npx tsc --noEmit && yarn lint'
-VERIFY[platform-functions]='cd <the subproject you changed> && (python -m pytest tests/ -q || npm test)'
-VERIFY[billing-service]='JAVA_HOME=$(/usr/libexec/java_home -v 1.8) ./sbt test'
-VERIFY[portal-api]='JAVA_HOME=$(/usr/libexec/java_home -v 1.8) ./sbt test'
+# --- without you: a command it can run and read the exit code of. The table lives
+# --- in verify.conf (see config/verify.conf.example): VERIFY[<repo>]=<command>, plus
+# --- RUNTIME_CHECK[<repo>] for a repo whose real gate is driving the running app.
+typeset -A VERIFY RUNTIME_CHECK
+source "$HOME/.config/voice-setup/verify.conf" 2>/dev/null
 
 verify_block=""
+runtime_note=""
 for r in "${existing[@]}"; do
   v="${VERIFY[$r]:-<no known check — find one and say what you used>}"
   verify_block+="  • $r → $v"$'\n'
+  [[ -n "${RUNTIME_CHECK[$r]:-}" ]] && runtime_note+=$'\n'"RUNTIME CHECK ($r only): ${RUNTIME_CHECK[$r]}"
 done
-
-# platform-web has no unit tests, so its real gate is driving the running app.
-runtime_note=""
-if (( ${existing[(Ie)platform-web]} )); then
-  runtime_note="
-RUNTIME CHECK (platform-web only): it has zero unit tests, so for any visible
-UI change the gate is the running app. \`npm start\` serves localhost:3000 against
-the DEPLOYED dev backend — you do not need platform-api running. Drive it with
-the Chrome tools, then read read_console_messages and read_network_requests and
-confirm you added no errors or failed calls. Login is Cognito: if it sits on the
-login screen, STOP and ask me to log in once — never script a Cognito login."
-fi
 
 if (( auto )); then
   # Unattended (autopilot.sh). Nobody is watching this window, and git push /

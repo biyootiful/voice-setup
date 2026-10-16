@@ -1,0 +1,14 @@
+# How each repo proves its own work — sourced by jira-agent.sh (⌃⌘J build agent).
+# Copy to ~/.config/voice-setup/verify.conf. Keys are repo directory names; a repo
+# with no entry makes the agent find a check itself and say what it used.
+
+# One command the agent runs and reads the exit code of.
+VERIFY[web-app]='npm test && npm run typecheck && npm run lint'
+VERIFY[api-service]='./mvnw test'
+VERIFY[scala-service]='JAVA_HOME=$(/usr/libexec/java_home -v 1.8) ./sbt test'
+
+# Extra gate for a repo whose real check is driving the running app.
+RUNTIME_CHECK[web-app]='for any visible UI change the gate is the running app.
+`npm start` serves localhost:3000; drive it with the Chrome tools, then read
+read_console_messages and read_network_requests and confirm you added no errors
+or failed calls. If it sits on a login screen, STOP and ask me to log in once.'
