@@ -269,17 +269,17 @@ def card(e, i, q):
 
 def rerank(query, cands, q, model):
     now = time.strftime("%Y-%m-%d %H:%M")
-    prompt = f"""{FINDER_OPENER}. Bi is looking for one of his past Claude Code sessions and
-described it the way he talks to an agent. It is now {now}.
+    prompt = f"""{FINDER_OPENER}. The user is looking for one of their past Claude Code sessions and
+described it the way they'd talk to an agent. It is now {now}.
 
-His words: "{query}"
+Their words: "{query}"
 
 Candidates (a keyword shortlist; it may contain none, one or several right answers):
 
 """ + "\n\n".join(card(e, i, q) for i, e in enumerate(cands)) + """
 
-Pick the sessions he means, best first, at most 5. Only include ones that plausibly
-match: the topic, ticket, person, PR or timeframe he gave. If he asked for several
+Pick the sessions they mean, best first, at most 5. Only include ones that plausibly
+match: the topic, ticket, person, PR or timeframe they gave. If they asked for several
 ("find them"), include each. Prefer the session that did the work over one that
 only mentioned it in passing, and never pick a session that was itself just a
 search for a session.
