@@ -305,6 +305,17 @@ hs.hotkey.bind({ "ctrl", "cmd" }, "r", speakSelection)
 hs.hotkey.bind({ "ctrl", "cmd" }, ".", stopSpeaking)
 
 -- ============================================================
+--  Machine-local shortcuts — ~/.hammerspoon/local.lua (optional)
+--    Hotkeys that name internal systems (work repos, accounts) live there, not
+--    in this file, so this one stays shareable. install.sh never touches it.
+-- ============================================================
+local LOCAL_CONFIG = HOME .. "/.hammerspoon/local.lua"
+if hs.fs.attributes(LOCAL_CONFIG) then
+  local ok, err = pcall(dofile, LOCAL_CONFIG)
+  if not ok then hs.alert.show("local.lua failed: " .. tostring(err), 6) end
+end
+
+-- ============================================================
 --  Cheat sheet + menu bar — see every shortcut anytime.
 --    Click the 🎙️ menu-bar icon, or press ⌃⌘/ for an overlay.
 --  (One shared list below drives both — edit here to update both.)
