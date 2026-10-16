@@ -75,7 +75,7 @@ The installer (idempotent — safe to re-run) will:
 
 ## Configuration
 
-All the hotkeys and toggles live in one file: **`~/.hammerspoon/init.lua`** (open it from the 🎙️ menu → *Edit shortcuts config*). Other knobs:
+All the hotkeys and toggles live in one file: **`~/.hammerspoon/init.lua`** (open it from the 🎙️ menu → *Edit shortcuts config*). Shortcuts of your own that shouldn't be shared (they name work systems, say) go in **`~/.hammerspoon/local.lua`**, which `init.lua` loads if it exists and `install.sh` never overwrites. Other knobs:
 
 - **Reply drafter repos** — `~/.config/voice-setup/reply-repos.conf` (see `config/reply-repos.conf.example`).
 - **Jira agent product groups** — `~/.config/voice-setup/repo-groups.conf` (see `config/repo-groups.conf.example`). For the Jira agent, also connect Atlassian once via `/mcp` in Claude Code.
