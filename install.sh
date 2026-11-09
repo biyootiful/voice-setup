@@ -31,8 +31,8 @@ mkdir -p "$VS_HOME" "$KOKORO_DIR" "$BIN" "$HOME/.hammerspoon" \
          "$HOME/Library/LaunchAgents" "$HOME/.config/voice-setup" "$HOME/.claude"
 
 # ---- 1. Homebrew dependencies ---------------------------------------------
-say "Installing Homebrew dependencies (sox, espeak-ng, python@3.12, jq, cmake)"
-arch -arm64 "$BREW" install sox espeak-ng python@3.12 jq cmake || true
+say "Installing Homebrew dependencies (sox, espeak-ng, python@3.12, jq, cmake, m1ddc)"
+arch -arm64 "$BREW" install sox espeak-ng python@3.12 jq cmake m1ddc || true
 if [[ ! -d "/Applications/Hammerspoon.app" ]]; then
   say "Installing Hammerspoon"
   arch -arm64 "$BREW" install --cask hammerspoon || true
@@ -84,6 +84,7 @@ chmod +x "$BIN"/*.sh
 say "Installing Hammerspoon config"
 [[ -f "$HOME/.hammerspoon/init.lua" ]] && cp "$HOME/.hammerspoon/init.lua" "$HOME/.hammerspoon/init.lua.bak.$(date +%s)"
 cp "$HERE/hammerspoon/init.lua" "$HOME/.hammerspoon/init.lua"
+cp "$HERE/hammerspoon/monitor-input.lua" "$HOME/.hammerspoon/monitor-input.lua"
 
 # ---- 6. LaunchAgents (substitute __HOME__, load) --------------------------
 say "Installing + loading background services"
@@ -116,6 +117,10 @@ GROUPS_CONF="$HOME/.config/voice-setup/repo-groups.conf"
 
 VERIFY_CONF="$HOME/.config/voice-setup/verify.conf"
 [[ -f "$VERIFY_CONF" ]] || { cp "$HERE/config/verify.conf.example" "$VERIFY_CONF"; warn "Edit $VERIFY_CONF with each repo's test/lint command (how the Jira build agent, Ctrl+Cmd+J, proves its work)."; }
+
+# Optional: ⌃⌘I monitor input switch. Seeded with every value commented out, so it does nothing until edited.
+MONITOR_CONF="$HOME/.config/voice-setup/monitor-input.conf"
+[[ -f "$MONITOR_CONF" ]] || cp "$HERE/config/monitor-input.conf.example" "$MONITOR_CONF"
 
 mkdir -p "${JIRA_TRIAGE_OUT:-$HOME/Documents/jira-triage}"
 command -v gh >/dev/null 2>&1 || warn "GitHub CLI ('gh') not found — Jira triage (Ctrl+Cmd+K) still works but won't annotate in-flight tickets with their open PR numbers."

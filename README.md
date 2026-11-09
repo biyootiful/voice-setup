@@ -13,6 +13,7 @@ A local, private voice + AI workflow for Apple-Silicon macOS:
 - **Jira triage** — press **Ctrl+Cmd+K** and pick a board / product group; it cross-checks every open ticket against git and tells you what is *actually* deployed. Buckets each ticket as shipped-to-prod / on-stage / in-flight / no-code-found, flags **drift** where Jira and git disagree (marked Done but not in prod, sitting in "Staging" but already live, shipped but the board never moved), and lists orphan branches with no ticket. Writes a markdown report to `~/Documents/jira-triage/` and prints a summary. Read-only — JQL reads plus `git fetch`, nothing is written to Jira.
 - **Weekly update drafter** — press **Ctrl+Cmd+W**; it reads your last few updates to the engineering list from *Sent* to learn your format and date the reporting window, walks the Jira boards you configured for everything that moved since, rewrites each ticket as one plain-English line, and leaves it as a Gmail **draft** (plus a markdown copy in `~/Documents/eng-weekly/`). Anything it can't verify from the ticket comes back as a `⚠️[confirm: …]` blank rather than an invented outcome. Never sends, and writes nothing to Jira. Needs the Gmail + Atlassian MCPs connected.
 - **Session finder** — press **Ctrl+Cmd+F** and ask for a past Claude Code session the way you would ask an agent ("find me the session where we fixed the druid case issue", "ABC460", "the one with Sam Lee"). It opens a chat window: an agent shortlists sessions by keyword, digs through the transcripts, and answers with what happened there — when, which repo, how it ended (PR opened, merged, still mid-way). Each session it names gets an **Open** button that reopens it in kitty in the right directory, or **Show** if a window already has it open (reopening would put two processes on one transcript). Follow-ups ("no, the one before that") keep their context until you press **New chat**; Esc closes the window. CLI: `session-chat.py "<words>"` for the chat, `find-session.py "<words>"` for a one-shot ranked list (keyword shortlist, Haiku picks; `--no-llm` for keywords only).
+- **Monitor input switch** — one monitor shared by two Macs: press **Ctrl+Cmd+I** on the Mac the monitor is showing and it switches to the other one's input, so you never reach for the monitor's buttons. Uses DDC/CI via `m1ddc`. The second Mac doesn't need the rest of voice-setup; `./install-monitor-input.sh` sets up just this. [Setup ↓](#monitor-input-switch)
 
 Everything runs locally except the reply drafter and the read-aloud, which use your existing **Claude Code subscription** (no extra API cost).
 
@@ -31,7 +32,7 @@ cd voice-setup
 ```
 
 The installer (idempotent — safe to re-run) will:
-- `brew install` sox, espeak-ng, python@3.12, jq, cmake, and Hammerspoon
+- `brew install` sox, espeak-ng, python@3.12, jq, cmake, m1ddc, and Hammerspoon
 - clone + build whisper.cpp (arm64/Metal) and download the `large-v3-turbo` model
 - create the Kokoro Python venv and download its model
 - copy the scripts to `~/.local/bin`, the config to `~/.hammerspoon/init.lua`
@@ -67,6 +68,7 @@ The installer (idempotent — safe to re-run) will:
 | **Ctrl + Cmd + E** | Revise highlighted text → concise Slack style on clipboard |
 | **Ctrl + Cmd + R** | Read highlighted text aloud (macOS `say`) |
 | **Ctrl + Cmd + .** | Stop reading |
+| **Ctrl + Cmd + I** | Send the shared monitor to the other computer's input |
 
 ## Seeing the shortcuts
 
@@ -99,7 +101,22 @@ All the hotkeys and toggles live in one file: **`~/.hammerspoon/init.lua`** (ope
 - **TTS voice / speed** — env vars on the Kokoro service: `KOKORO_VOICE` (currently `bf_isabella`), `KOKORO_SPEED`, `KOKORO_CHUNK_CHARS`. Set them in the `EnvironmentVariables` dict of `launchagents/com.user.kokoro-tts.plist`, then re-run `./install.sh` (or copy to `~/Library/LaunchAgents/`, substituting `__HOME__`, and `launchctl unload && load`). Editing only the installed copy works until the next install overwrites it.
 
   All 54 voices ship inside `voices-v1.0.bin` — nothing extra to download. Prefix is language + gender (`af_`/`am_` American, `bf_`/`bm_` British, then `e`=es, `f`=fr, `h`=hi, `i`=it, `j`=ja, `p`=pt, `z`=zh). Best English options: `af_heart`, `af_bella`, `af_nicole`, `am_michael`, `am_puck`, `bf_emma`, `bf_isabella`, `bm_george`; the rest of the American set is noticeably more synthetic. Non-English voices also need `lang=` changed in `bin/kokoro-tts-server.py`, which hardcodes `en-us`. To audition them all, loop `Kokoro.get_voices()` through `kokoro.create()` using `~/.local/kokoro-venv/bin/python`.
+- **Monitor input switch** — see [below](#monitor-input-switch).
 - **Whisper model** — change the model name in `~/.local/bin/whisper-dictation-server.sh`.
+
+## Monitor input switch
+
+Two Macs on one monitor: **Ctrl+Cmd+I** on the Mac the monitor is showing switches it to the other one. Set it up on **both** Macs:
+
+- **This Mac** (full voice-setup): `install.sh` installs `m1ddc` and `~/.hammerspoon/monitor-input.lua`. Set the ports in `~/.config/voice-setup/monitor-input.conf` (see `config/monitor-input.conf.example`).
+- **The other Mac** (just this feature): clone the repo there and run `./install-monitor-input.sh THIS OTHER`. For example, a Mac on DisplayPort sharing with one on HDMI 1 runs `./install-monitor-input.sh 15 17`. It installs `m1ddc` and Hammerspoon, adds one `dofile` line to `~/.hammerspoon/init.lua` (creating the file if needed) and writes the conf.
+
+`THIS_INPUT` is the port that Mac is plugged into and `OTHER_INPUT` is the other Mac's. Run `m1ddc get input` to see the current port. Common codes: DisplayPort 1 = 15, DP 2 = 16, HDMI 1 = 17, HDMI 2 = 18, USB-C = 27; some monitors use their own (`m1ddc help`).
+
+Things to know:
+- **Press it on the Mac you're looking at.** Many monitors, LG included, only take commands from the input they're showing. The Mac that isn't on screen can't switch the monitor back, so its press only shows a hint.
+- `m1ddc set input` exits with an error even when the switch works, because the monitor drops the link before it replies. Trust the screen, not the exit code.
+- Needs Apple Silicon and a DDC-capable connection: USB-C/DisplayPort, or a Mac HDMI port that passes DDC through.
 
 ## Resuming an agent session
 

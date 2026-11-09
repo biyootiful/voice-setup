@@ -549,6 +549,14 @@ for i = 1, 9 do
   end)
 end
 
+-- Monitor input switch (⌃⌘I) — its own file so a Mac without the rest of
+-- voice-setup can run it too (install-monitor-input.sh). See the file for how it works.
+local MONITOR_INPUT = HOME .. "/.hammerspoon/monitor-input.lua"
+if hs.fs.attributes(MONITOR_INPUT) then
+  local ok, err = pcall(dofile, MONITOR_INPUT)
+  if not ok then hs.alert.show("monitor-input.lua failed: " .. tostring(err), 6) end
+end
+
 local COMMANDS = {
   { "⌥ Space (hold)",     "Dictate — raw, types as you speak" },
   { "⌥ ⇧ Space (hold)",   "Clean dictation — transcribe, auto-revise, type" },
@@ -565,6 +573,7 @@ local COMMANDS = {
   { "⌃ ⌘ W",              "Draft the Engineering Weekly email from the Jira boards" },
   { "⌃ ⌘ T",              "Tile the agent terminals into an even grid" },
   { "⌃ ⌘ 1-9",            "Jump straight to the Nth agent session" },
+  { "⌃ ⌘ I",              "Send the shared monitor to the other computer" },
 }
 
 local cheatId = nil

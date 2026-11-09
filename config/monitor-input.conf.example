@@ -1,0 +1,19 @@
+# Monitor input switch (⌃⌘I) — read by hammerspoon/init.lua on every press.
+# Copy to ~/.config/voice-setup/monitor-input.conf on EACH computer sharing the
+# monitor; the two copies are mirror images of each other.
+#
+# Values are the monitor's DDC input codes. Common ones:
+#   DisplayPort 1 = 15   DisplayPort 2 = 16   HDMI 1 = 17   HDMI 2 = 18   USB-C = 27
+# Find the port this Mac is on with:  m1ddc get input
+# (Some monitors use their own codes; if 15/16/17/18/27 do nothing, check
+# `m1ddc help` and the monitor's manual.)
+
+# The input this computer is plugged into.
+#THIS_INPUT=17
+
+# The input the other computer is plugged into.
+#OTHER_INPUT=15
+
+# Only with more than one external monitor: which one to switch
+# (a number or UUID from `m1ddc display list`).
+#DDC_DISPLAY=1
