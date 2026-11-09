@@ -9,9 +9,10 @@
 --    them) only take DDC commands from the input they're showing, so only the
 --    Mac on screen can switch away: press ⌃⌘I on that Mac's keyboard.
 --
---    A press reads the current input. Showing this Mac → OTHER_INPUT.
---    Anything else → THIS_INPUT, which only works on monitors that listen on
---    an input they aren't showing.
+--    A press reads the current input. Any answer but OTHER_INPUT means this
+--    Mac is on screen (LG always answers 0) → OTHER_INPUT. OTHER_INPUT or no
+--    answer → THIS_INPUT, which only works on monitors that listen on an
+--    input they aren't showing.
 --    `m1ddc set input` exits non-zero on a real switch (the monitor drops the
 --    link before it acks), so its exit code is ignored.
 -- ============================================================
@@ -51,7 +52,7 @@ local function switchMonitorInput()
   end
   ddcTask = hs.task.new(M1DDC, function(code, out)
     local current = code == 0 and tonumber((out or ""):match("%d+")) or nil
-    local target = current == here and there or here
+    local target = (current == nil or current == there) and here or there
     if target == there then
       hs.alert.show("🖥  monitor → the other computer", 1)
     elseif current then
